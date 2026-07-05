@@ -1,5 +1,10 @@
 <script>
-  import { PRIORITIES, STATUSES, SOURCES, DEVICE_TYPES } from "../utils/constants.js";
+  import {
+    PRIORITIES,
+    STATUSES,
+    SOURCES,
+    DEVICE_TYPES,
+  } from "../utils/constants.js";
   import { titleCase } from "../utils/format.js";
   import { validateTicketForm } from "../utils/validation.js";
 
@@ -67,24 +72,34 @@
     <label>
       Customer ID
       <input type="text" bind:value={fields.customer_id} />
-      {#if errors.customer_id}<span class="field-error">{errors.customer_id}</span>{/if}
+      {#if errors.customer_id}<span class="field-error"
+          >{errors.customer_id}</span
+        >{/if}
     </label>
 
     <label>
       Customer Email
       <input type="email" bind:value={fields.customer_email} />
-      {#if errors.customer_email}<span class="field-error">{errors.customer_email}</span>{/if}
+      {#if errors.customer_email}<span class="field-error"
+          >{errors.customer_email}</span
+        >{/if}
     </label>
 
     <label>
       Customer Name
       <input type="text" bind:value={fields.customer_name} />
-      {#if errors.customer_name}<span class="field-error">{errors.customer_name}</span>{/if}
+      {#if errors.customer_name}<span class="field-error"
+          >{errors.customer_name}</span
+        >{/if}
     </label>
 
     <label>
       Assigned To
-      <input type="text" bind:value={fields.assigned_to} placeholder="agent-1 (optional)" />
+      <input
+        type="text"
+        bind:value={fields.assigned_to}
+        placeholder="agent-1 (optional)"
+      />
     </label>
   </div>
 
@@ -96,8 +111,10 @@
 
   <label>
     Description
-    <textarea rows="4" bind:value={fields.description} maxlength="2000"></textarea>
-    {#if errors.description}<span class="field-error">{errors.description}</span>{/if}
+    <textarea rows="4" bind:value={fields.description} maxlength="2000"
+    ></textarea>
+    {#if errors.description}<span class="field-error">{errors.description}</span
+      >{/if}
   </label>
 
   <div class="grid">
@@ -105,7 +122,7 @@
       Category
       <select bind:value={fields.category}>
         <option value="">Auto / unset</option>
-        {#each categories as c}
+        {#each categories as c (c.category)}
           <option value={c.category}>{titleCase(c.category)}</option>
         {/each}
         <option value="other">Other</option>
@@ -116,7 +133,7 @@
       Priority
       <select bind:value={fields.priority}>
         <option value="">Auto / unset</option>
-        {#each PRIORITIES as p}
+        {#each PRIORITIES as p (p)}
           <option value={p}>{titleCase(p)}</option>
         {/each}
       </select>
@@ -126,7 +143,7 @@
       <label>
         Status
         <select bind:value={fields.status}>
-          {#each STATUSES as s}
+          {#each STATUSES as s (s)}
             <option value={s}>{titleCase(s)}</option>
           {/each}
         </select>
@@ -145,20 +162,24 @@
       <label>
         Source
         <select bind:value={fields.source}>
-          {#each SOURCES as s}
+          {#each SOURCES as s (s)}
             <option value={s}>{titleCase(s)}</option>
           {/each}
         </select>
       </label>
       <label>
         Browser
-        <input type="text" bind:value={fields.browser} placeholder="Chrome (optional)" />
+        <input
+          type="text"
+          bind:value={fields.browser}
+          placeholder="Chrome (optional)"
+        />
       </label>
       <label>
         Device Type
         <select bind:value={fields.device_type}>
           <option value="">Unspecified</option>
-          {#each DEVICE_TYPES as d}
+          {#each DEVICE_TYPES as d (d)}
             <option value={d}>{titleCase(d)}</option>
           {/each}
         </select>
@@ -197,7 +218,9 @@
     font-size: 0.85rem;
     color: #334155;
   }
-  input, select, textarea {
+  input,
+  select,
+  textarea {
     padding: 0.5rem 0.6rem;
     border: 1px solid #cbd5e1;
     border-radius: 6px;

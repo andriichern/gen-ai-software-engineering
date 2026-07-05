@@ -12,7 +12,9 @@
     summary = null;
     try {
       summary = await importTickets(file, { autoClassify });
-      notify.success(`Imported ${summary.successful}/${summary.total} tickets.`);
+      notify.success(
+        `Imported ${summary.successful}/${summary.total} tickets.`,
+      );
     } catch (err) {
       notify.error(formatApiErrorDetail(err.detail));
     } finally {
@@ -40,7 +42,7 @@
             <tr><th>Row</th><th>Error</th></tr>
           </thead>
           <tbody>
-            {#each summary.errors as e}
+            {#each summary.errors as e (e.index)}
               <tr><td>{e.index}</td><td>{e.error}</td></tr>
             {/each}
           </tbody>
@@ -64,7 +66,8 @@
     font-size: 0.82rem;
     margin-top: 0.5rem;
   }
-  th, td {
+  th,
+  td {
     text-align: left;
     padding: 0.4rem 0.6rem;
     border-bottom: 1px solid #e2e8f0;

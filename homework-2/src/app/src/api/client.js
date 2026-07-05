@@ -23,7 +23,10 @@ export function formatApiErrorDetail(detail) {
   return "Something went wrong.";
 }
 
-export async function request(path, { method = "GET", json, body, params, headers } = {}) {
+export async function request(
+  path,
+  { method = "GET", json, body, params, headers } = {},
+) {
   const url = new URL(BASE_URL + path);
   if (params) {
     for (const [key, value] of Object.entries(params)) {
@@ -48,10 +51,15 @@ export async function request(path, { method = "GET", json, body, params, header
   }
 
   const contentType = response.headers.get("content-type") || "";
-  const data = contentType.includes("application/json") ? await response.json() : null;
+  const data = contentType.includes("application/json")
+    ? await response.json()
+    : null;
 
   if (!response.ok) {
-    throw new ApiError(response.status, data ? data.detail : response.statusText);
+    throw new ApiError(
+      response.status,
+      data ? data.detail : response.statusText,
+    );
   }
 
   return data;

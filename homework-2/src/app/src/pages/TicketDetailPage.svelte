@@ -2,7 +2,11 @@
   import { onMount } from "svelte";
   import { navigate } from "svelte-routing";
   import TicketDetailView from "../components/TicketDetailView.svelte";
-  import { getTicket, deleteTicket, autoClassifyTicket } from "../api/tickets.js";
+  import {
+    getTicket,
+    deleteTicket,
+    autoClassifyTicket,
+  } from "../api/tickets.js";
   import { notify } from "../stores/notifications.js";
   import { formatApiErrorDetail } from "../api/client.js";
 

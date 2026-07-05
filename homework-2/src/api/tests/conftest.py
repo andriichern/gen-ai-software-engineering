@@ -10,7 +10,7 @@ from api.main import app
 from api.routers.tickets import store
 from api.services.category_registry import category_registry
 
-FIXTURES_DIR = Path(__file__).parent / "fixtures"
+FIXTURES_DIR = Path(__file__).parent.parent.parent / "tests" / "fixtures"
 
 
 @pytest.fixture

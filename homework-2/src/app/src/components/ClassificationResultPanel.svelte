@@ -10,12 +10,14 @@
     <div class="result-row">
       <Badge value={result.category} kind="category" />
       <Badge value={result.priority} kind="priority" />
-      <span class="confidence">Confidence: {formatConfidence(result.confidence)}</span>
+      <span class="confidence"
+        >Confidence: {formatConfidence(result.confidence)}</span
+      >
     </div>
     <p class="reasoning">{result.reasoning}</p>
     {#if result.keywords_found?.length}
       <div class="keywords">
-        {#each result.keywords_found as kw}
+        {#each result.keywords_found as kw (kw)}
           <span class="keyword-chip">{kw}</span>
         {/each}
       </div>

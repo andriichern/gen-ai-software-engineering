@@ -1,6 +1,10 @@
 <script>
   import { onMount } from "svelte";
-  import { listCategories, createCategory, addCategoryKeywords } from "../api/categories.js";
+  import {
+    listCategories,
+    createCategory,
+    addCategoryKeywords,
+  } from "../api/categories.js";
   import { validateCategoryKey } from "../utils/validation.js";
   import { titleCase } from "../utils/format.js";
   import { notify } from "../stores/notifications.js";
@@ -58,7 +62,10 @@
     if (!draft) return;
     addingKeywordFor = categoryKey;
     try {
-      const keywords = draft.split(",").map((k) => k.trim()).filter(Boolean);
+      const keywords = draft
+        .split(",")
+        .map((k) => k.trim())
+        .filter(Boolean);
       await addCategoryKeywords(categoryKey, keywords);
       notify.success(`Added keyword(s) to "${categoryKey}".`);
       keywordDrafts[categoryKey] = "";
@@ -85,14 +92,23 @@
       </label>
       <label>
         Starting keywords (comma separated, optional)
-        <input type="text" bind:value={newKeywords} placeholder="package late, tracking lost" />
+        <input
+          type="text"
+          bind:value={newKeywords}
+          placeholder="package late, tracking lost"
+        />
       </label>
-      <button type="submit" class="btn-primary" disabled={creating || !newKey.trim()}>
+      <button
+        type="submit"
+        class="btn-primary"
+        disabled={creating || !newKey.trim()}
+      >
         {creating ? "Creating…" : "Create Category"}
       </button>
     </form>
     <p class="hint">
-      "other" is the built-in fallback category and can't be created or edited here.
+      "other" is the built-in fallback category and can't be created or edited
+      here.
     </p>
   </section>
 
@@ -106,25 +122,33 @@
           <div class="category-card">
             <h3>{titleCase(c.category)}</h3>
             <div class="keywords">
-              {#each c.keywords as kw}
+              {#each c.keywords as kw (kw)}
                 <span class="keyword-chip">{kw}</span>
               {/each}
               {#if c.keywords.length === 0}
                 <span class="no-keywords">No keywords yet.</span>
               {/if}
             </div>
-            <form class="add-keyword-form" on:submit|preventDefault={() => handleAddKeyword(c.category)}>
+            <form
+              class="add-keyword-form"
+              on:submit|preventDefault={() => handleAddKeyword(c.category)}
+            >
               <input
                 type="text"
                 bind:value={keywordDrafts[c.category]}
                 placeholder="add keyword(s), comma separated"
               />
-              <button type="submit" class="btn-secondary" disabled={addingKeywordFor === c.category}>
+              <button
+                type="submit"
+                class="btn-secondary"
+                disabled={addingKeywordFor === c.category}
+              >
                 {addingKeywordFor === c.category ? "Adding…" : "Add"}
               </button>
             </form>
             <p class="hint">
-              Adding only appends new keywords — existing ones can't be removed here.
+              Adding only appends new keywords — existing ones can't be removed
+              here.
             </p>
           </div>
         {/each}

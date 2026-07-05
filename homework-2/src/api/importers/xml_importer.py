@@ -14,10 +14,8 @@ from __future__ import annotations
 
 from xml.etree import ElementTree as ET
 
-from pydantic import ValidationError
-
-from ..models import ImportError_, ImportSummary, Ticket
-from .base import RowParseError, row_to_ticket
+from ..models import ImportSummary, Ticket
+from .base import RowParseError, build_summary, collect_tickets
 
 
 def _element_to_row(element: ET.Element) -> dict[str, str]:
@@ -30,24 +28,8 @@ def parse_xml(content: bytes) -> tuple[list[Ticket], ImportSummary]:
     except ET.ParseError as exc:
         raise RowParseError(f"Invalid XML: {exc}") from exc
 
-    ticket_elements = root.findall("ticket")
+    rows = [_element_to_row(element) for element in root.findall("ticket")]
 
-    tickets: list[Ticket] = []
-    errors: list[ImportError_] = []
-    total = 0
-
-    for index, element in enumerate(ticket_elements):
-        total += 1
-        try:
-            row = _element_to_row(element)
-            tickets.append(row_to_ticket(row))
-        except ValidationError as exc:
-            errors.append(ImportError_(index=index, error=str(exc)))
-
-    summary = ImportSummary(
-        total=total,
-        successful=len(tickets),
-        failed=len(errors),
-        errors=errors,
-    )
-    return tickets, summary
+    errors = []
+    tickets = collect_tickets(enumerate(rows), errors)
+    return tickets, build_summary(len(rows), tickets, errors)

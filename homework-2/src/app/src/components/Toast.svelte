@@ -6,7 +6,11 @@
   {#each $notifications as note (note.id)}
     <div class="toast toast-{note.type}" role="alert">
       <span>{note.message}</span>
-      <button class="toast-close" on:click={() => dismiss(note.id)} aria-label="Dismiss">×</button>
+      <button
+        class="toast-close"
+        on:click={() => dismiss(note.id)}
+        aria-label="Dismiss">×</button
+      >
     </div>
   {/each}
 </div>
@@ -32,8 +36,14 @@
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
     font-size: 0.9rem;
   }
-  .toast-success { background: #dcfce7; color: #14532d; }
-  .toast-error { background: #fee2e2; color: #7f1d1d; }
+  .toast-success {
+    background: #dcfce7;
+    color: #14532d;
+  }
+  .toast-error {
+    background: #fee2e2;
+    color: #7f1d1d;
+  }
   .toast-close {
     background: none;
     border: none;
