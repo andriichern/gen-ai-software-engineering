@@ -1,0 +1,7 @@
+customer_id,customer_email,customer_name,subject,description,tags,source,browser,device_type,assigned_to,category
+cust-0101,customer101@example.com,Customer 101,Locked out after 2FA setup #101,I set up two-factor authentication and now I'm locked out completely.,"trial,beta",email,Chrome,tablet,,
+cust-0102,not-an-email,Customer 102,General question #102,Just wanted to say the onboarding experience was pretty smooth overall.,,api,Chrome,tablet,agent-2,
+cust-0103,customer103@example.com,Customer 103,Locked out after 2FA setup #103,short,"trial,enterprise",web_form,Safari,desktop,,
+cust-0104,customer104@example.com,Customer 104,,"This is a regression from last week's release, reproduction steps attached below.",,chat,Safari,tablet,,
+cust-0105,customer105@example.com,Customer 105,Defect in report totals #105,"Found a defect where reproduction steps show totals off by one, easy to reproduce.",,chat,Firefox,tablet,agent-0,not_a_category
+cust-0106,customer106@example.com,Customer 106,Site not working after update #106,"The site is not working since the update, keeps throwing a crash error.",beta,phone,,mobile,,

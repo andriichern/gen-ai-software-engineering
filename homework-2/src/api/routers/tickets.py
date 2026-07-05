@@ -49,7 +49,7 @@ def create_ticket(payload: TicketCreate, auto_classify: bool = Query(False)):
 
 
 @router.post("/import", response_model=ImportSummary)
-async def import_tickets(file: UploadFile):
+async def import_tickets(file: UploadFile, auto_classify: bool = Query(False)):
     suffix = (file.filename or "").rsplit(".", 1)[-1].lower()
     parser = _PARSERS.get(suffix)
     if parser is None:
@@ -65,6 +65,8 @@ async def import_tickets(file: UploadFile):
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     for ticket in tickets:
+        if auto_classify:
+            _apply_classification(ticket)
         store.create(ticket)
 
     return summary

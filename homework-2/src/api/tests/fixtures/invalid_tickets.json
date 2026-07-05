@@ -1,0 +1,63 @@
+[
+  {
+    "customer_id": "cust-0201",
+    "customer_email": "customer201@example.com",
+    "customer_name": "Customer 201",
+    "subject": "Defect in report totals #201",
+    "description": "Found a defect where reproduction steps show totals off by one, easy to reproduce.",
+    "tags": "enterprise,beta",
+    "source": "email",
+    "browser": "Chrome",
+    "device_type": "mobile",
+    "assigned_to": "agent-1"
+  },
+  {
+    "customer_id": "cust-0202",
+    "customer_email": "also-not-an-email",
+    "customer_name": "Customer 202",
+    "subject": "Bug: crash on save, steps to reproduce included #202",
+    "description": "Steps to reproduce: open the editor, click save twice, it crashes every time.",
+    "tags": "beta",
+    "source": "phone",
+    "browser": "",
+    "device_type": "mobile",
+    "assigned_to": ""
+  },
+  {
+    "customer_id": "cust-0203",
+    "customer_email": "customer203@example.com",
+    "customer_name": "Customer 203",
+    "subject": "Locked out after 2FA setup #203",
+    "description": "short",
+    "tags": "urgent",
+    "source": "chat",
+    "browser": "Firefox",
+    "device_type": "mobile",
+    "assigned_to": ""
+  },
+  {
+    "customer_id": "cust-0204",
+    "customer_email": "customer204@example.com",
+    "customer_name": "Customer 204",
+    "subject": "",
+    "description": "Could you add a suggestion box for exporting reports as CSV, that would help a lot.",
+    "tags": "beta",
+    "source": "api",
+    "browser": "Chrome",
+    "device_type": "tablet",
+    "assigned_to": "agent-4"
+  },
+  {
+    "customer_id": "cust-0205",
+    "customer_email": "customer205@example.com",
+    "customer_name": "Customer 205",
+    "subject": "Question about my invoice #205",
+    "description": "My latest invoice shows a charge I don't recognize on my subscription.",
+    "tags": "",
+    "source": "chat",
+    "browser": "",
+    "device_type": "tablet",
+    "assigned_to": "",
+    "category": "not_a_category"
+  }
+]

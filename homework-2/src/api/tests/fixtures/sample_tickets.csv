@@ -1,0 +1,51 @@
+customer_id,customer_email,customer_name,subject,description,tags,source,browser,device_type,assigned_to
+cust-0001,customer1@example.com,Customer 1,General question #1,Just wanted to say the onboarding experience was pretty smooth overall.,,api,Firefox,desktop,
+cust-0002,customer2@example.com,Customer 2,Credit card billing issue #2,My credit card was billed for a subscription I already cancelled.,,phone,Chrome,tablet,
+cust-0003,customer3@example.com,Customer 3,"Bug: crash on save, steps to reproduce included #3","Steps to reproduce: open the editor, click save twice, it crashes every time.",,web_form,Firefox,desktop,agent-3
+cust-0004,customer4@example.com,Customer 4,Site not working after update #4,"The site is not working since the update, keeps throwing a crash error.",,phone,Firefox,tablet,
+cust-0005,customer5@example.com,Customer 5,Feedback about support #5,Wanted to share some general feedback about the support experience.,,chat,Safari,desktop,
+cust-0006,customer6@example.com,Customer 6,Credit card billing issue #6,My credit card was billed for a subscription I already cancelled.,enterprise,api,Firefox,desktop,agent-1
+cust-0007,customer7@example.com,Customer 7,Feature request: dark mode #7,It would be nice to have a dark mode enhancement in the settings.,,chat,Chrome,mobile,
+cust-0008,customer8@example.com,Customer 8,Please add calendar sync #8,Please add a feature to sync deadlines with an external calendar app.,vip,chat,Chrome,mobile,
+cust-0009,customer9@example.com,Customer 9,Password reset not working #9,The password reset email never arrives so I cannot sign in.,beta,api,Firefox,tablet,agent-4
+cust-0010,customer10@example.com,Customer 10,Cannot log in to my account #10,"I forgot my password and cannot log in at all, please help.","urgent,enterprise",web_form,Firefox,desktop,
+cust-0011,customer11@example.com,Customer 11,Regression in latest release #11,"This is a regression from last week's release, reproduction steps attached below.",enterprise,email,Safari,mobile,
+cust-0012,customer12@example.com,Customer 12,Credit card billing issue #12,My credit card was billed for a subscription I already cancelled.,vip,phone,Firefox,tablet,agent-2
+cust-0013,customer13@example.com,Customer 13,General question #13,Just wanted to say the onboarding experience was pretty smooth overall.,,chat,,mobile,
+cust-0014,customer14@example.com,Customer 14,General question #14,Just wanted to say the onboarding experience was pretty smooth overall.,"enterprise,vip",email,Chrome,mobile,
+cust-0015,customer15@example.com,Customer 15,Regression in latest release #15,"This is a regression from last week's release, reproduction steps attached below.",,email,Safari,desktop,agent-0
+cust-0016,customer16@example.com,Customer 16,Feedback about support #16,Wanted to share some general feedback about the support experience.,trial,email,Safari,desktop,
+cust-0017,customer17@example.com,Customer 17,Credit card billing issue #17,My credit card was billed for a subscription I already cancelled.,"beta,enterprise",phone,,tablet,
+cust-0018,customer18@example.com,Customer 18,Regression in latest release #18,"This is a regression from last week's release, reproduction steps attached below.",,email,,desktop,agent-3
+cust-0019,customer19@example.com,Customer 19,Cannot log in to my account #19,"I forgot my password and cannot log in at all, please help.",,email,,tablet,
+cust-0020,customer20@example.com,Customer 20,Locked out after 2FA setup #20,I set up two-factor authentication and now I'm locked out completely.,beta,chat,Safari,tablet,
+cust-0021,customer21@example.com,Customer 21,Password reset not working #21,The password reset email never arrives so I cannot sign in.,"vip,enterprise",api,Chrome,mobile,agent-1
+cust-0022,customer22@example.com,Customer 22,"Bug: crash on save, steps to reproduce included #22","Steps to reproduce: open the editor, click save twice, it crashes every time.",vip,api,Firefox,tablet,
+cust-0023,customer23@example.com,Customer 23,Password reset not working #23,The password reset email never arrives so I cannot sign in.,beta,phone,Firefox,desktop,
+cust-0024,customer24@example.com,Customer 24,Feature request: dark mode #24,It would be nice to have a dark mode enhancement in the settings.,"beta,vip",phone,Safari,mobile,agent-4
+cust-0025,customer25@example.com,Customer 25,Cannot log in to my account #25,"I forgot my password and cannot log in at all, please help.",enterprise,email,Chrome,desktop,
+cust-0026,customer26@example.com,Customer 26,App crashes on startup #26,"The app crashes with an error every time I open it, exception in the logs too.",,chat,Chrome,tablet,
+cust-0027,customer27@example.com,Customer 27,Question about my invoice #27,My latest invoice shows a charge I don't recognize on my subscription.,"trial,urgent",api,,desktop,agent-2
+cust-0028,customer28@example.com,Customer 28,Site not working after update #28,"The site is not working since the update, keeps throwing a crash error.","urgent,enterprise",chat,Safari,mobile,
+cust-0029,customer29@example.com,Customer 29,Broken dashboard widget #29,"The dashboard widget is broken and fails to load, shows an error instead.",,email,Firefox,desktop,
+cust-0030,customer30@example.com,Customer 30,Feature request: dark mode #30,It would be nice to have a dark mode enhancement in the settings.,"beta,urgent",phone,Firefox,desktop,agent-0
+cust-0031,customer31@example.com,Customer 31,Password reset not working #31,The password reset email never arrives so I cannot sign in.,"vip,urgent",web_form,Chrome,mobile,
+cust-0032,customer32@example.com,Customer 32,Password reset not working #32,The password reset email never arrives so I cannot sign in.,,api,,desktop,
+cust-0033,customer33@example.com,Customer 33,App crashes on startup #33,"The app crashes with an error every time I open it, exception in the logs too.","beta,trial",email,,mobile,agent-3
+cust-0034,customer34@example.com,Customer 34,Question about my invoice #34,My latest invoice shows a charge I don't recognize on my subscription.,,chat,Safari,mobile,
+cust-0035,customer35@example.com,Customer 35,Regression in latest release #35,"This is a regression from last week's release, reproduction steps attached below.","vip,beta",web_form,,tablet,
+cust-0036,customer36@example.com,Customer 36,Feature request: dark mode #36,It would be nice to have a dark mode enhancement in the settings.,,email,Firefox,tablet,agent-1
+cust-0037,customer37@example.com,Customer 37,"Bug: crash on save, steps to reproduce included #37","Steps to reproduce: open the editor, click save twice, it crashes every time.",urgent,api,,desktop,
+cust-0038,customer38@example.com,Customer 38,Locked out after 2FA setup #38,I set up two-factor authentication and now I'm locked out completely.,"vip,beta",phone,Chrome,desktop,
+cust-0039,customer39@example.com,Customer 39,Question about my invoice #39,My latest invoice shows a charge I don't recognize on my subscription.,trial,chat,Firefox,mobile,agent-4
+cust-0040,customer40@example.com,Customer 40,Cannot log in to my account #40,"I forgot my password and cannot log in at all, please help.",vip,chat,Safari,mobile,
+cust-0041,customer41@example.com,Customer 41,Suggestion for export option #41,"Could you add a suggestion box for exporting reports as CSV, that would help a lot.","beta,trial",email,Firefox,mobile,
+cust-0042,customer42@example.com,Customer 42,Question about my invoice #42,My latest invoice shows a charge I don't recognize on my subscription.,"beta,vip",api,Chrome,desktop,agent-2
+cust-0043,customer43@example.com,Customer 43,Broken dashboard widget #43,"The dashboard widget is broken and fails to load, shows an error instead.","beta,urgent",web_form,Chrome,desktop,
+cust-0044,customer44@example.com,Customer 44,Password reset not working #44,The password reset email never arrives so I cannot sign in.,,email,,desktop,
+cust-0045,customer45@example.com,Customer 45,App crashes on startup #45,"The app crashes with an error every time I open it, exception in the logs too.","beta,vip",phone,Chrome,mobile,agent-0
+cust-0046,customer46@example.com,Customer 46,Feedback about support #46,Wanted to share some general feedback about the support experience.,urgent,api,Firefox,mobile,
+cust-0047,customer47@example.com,Customer 47,"Bug: crash on save, steps to reproduce included #47","Steps to reproduce: open the editor, click save twice, it crashes every time.","enterprise,trial",api,Chrome,desktop,
+cust-0048,customer48@example.com,Customer 48,Defect in report totals #48,"Found a defect where reproduction steps show totals off by one, easy to reproduce.","vip,beta",phone,Firefox,tablet,agent-3
+cust-0049,customer49@example.com,Customer 49,Feature request: dark mode #49,It would be nice to have a dark mode enhancement in the settings.,vip,email,Safari,mobile,
+cust-0050,customer50@example.com,Customer 50,Refund request for duplicate charge #50,"I was charged twice for the same payment, please refund the extra charge.","enterprise,vip",phone,Safari,tablet,

@@ -86,5 +86,11 @@ class CategoryRegistry:
                 existing.append(normalized)
         return list(existing)
 
+    def reset(self) -> None:
+        """Restores the registry to just the default seed categories. Used by tests."""
+        self._keywords = {}
+        for key, keywords in _DEFAULT_CATEGORY_KEYWORDS:
+            self._keywords[key] = list(keywords)
+
 
 category_registry = CategoryRegistry()
