@@ -15,10 +15,18 @@ export function validateTicketForm(fields) {
   if (!fields.customer_name || !fields.customer_name.trim()) {
     errors.customer_name = "Customer name is required.";
   }
-  if (!fields.subject || fields.subject.length < 1 || fields.subject.length > 200) {
+  if (
+    !fields.subject ||
+    fields.subject.length < 1 ||
+    fields.subject.length > 200
+  ) {
     errors.subject = "Subject must be 1-200 characters.";
   }
-  if (!fields.description || fields.description.length < 10 || fields.description.length > 2000) {
+  if (
+    !fields.description ||
+    fields.description.length < 10 ||
+    fields.description.length > 2000
+  ) {
     errors.description = "Description must be 10-2000 characters.";
   }
 

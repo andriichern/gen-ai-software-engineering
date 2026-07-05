@@ -15,11 +15,17 @@
   <header class="detail-header">
     <div>
       <h2>{ticket.subject}</h2>
-      <p class="customer">{ticket.customer_name} · {ticket.customer_email} · {ticket.customer_id}</p>
+      <p class="customer">
+        {ticket.customer_name} · {ticket.customer_email} · {ticket.customer_id}
+      </p>
     </div>
     <div class="header-actions">
-      <Link to={`/tickets/${ticket.id}/edit`} class="btn-secondary-link">Edit</Link>
-      <button type="button" class="btn-danger" on:click={() => onDelete(ticket)}>Delete</button>
+      <Link to={`/tickets/${ticket.id}/edit`} class="btn-secondary-link"
+        >Edit</Link
+      >
+      <button type="button" class="btn-danger" on:click={() => onDelete(ticket)}
+        >Delete</button
+      >
     </div>
   </header>
 
@@ -41,20 +47,29 @@
     <div>
       <h3>Details</h3>
       <dl>
-        <dt>Assigned To</dt><dd>{ticket.assigned_to || "Unassigned"}</dd>
-        <dt>Tags</dt><dd>{ticket.tags?.length ? ticket.tags.join(", ") : "—"}</dd>
-        <dt>Created</dt><dd>{formatDateTime(ticket.created_at)}</dd>
-        <dt>Updated</dt><dd>{formatDateTime(ticket.updated_at)}</dd>
-        <dt>Resolved</dt><dd>{formatDateTime(ticket.resolved_at)}</dd>
-        <dt>Classification Confidence</dt><dd>{formatConfidence(ticket.classification_confidence)}</dd>
+        <dt>Assigned To</dt>
+        <dd>{ticket.assigned_to || "Unassigned"}</dd>
+        <dt>Tags</dt>
+        <dd>{ticket.tags?.length ? ticket.tags.join(", ") : "—"}</dd>
+        <dt>Created</dt>
+        <dd>{formatDateTime(ticket.created_at)}</dd>
+        <dt>Updated</dt>
+        <dd>{formatDateTime(ticket.updated_at)}</dd>
+        <dt>Resolved</dt>
+        <dd>{formatDateTime(ticket.resolved_at)}</dd>
+        <dt>Classification Confidence</dt>
+        <dd>{formatConfidence(ticket.classification_confidence)}</dd>
       </dl>
     </div>
     <div>
       <h3>Metadata</h3>
       <dl>
-        <dt>Source</dt><dd>{ticket.metadata?.source || "—"}</dd>
-        <dt>Browser</dt><dd>{ticket.metadata?.browser || "—"}</dd>
-        <dt>Device Type</dt><dd>{ticket.metadata?.device_type || "—"}</dd>
+        <dt>Source</dt>
+        <dd>{ticket.metadata?.source || "—"}</dd>
+        <dt>Browser</dt>
+        <dd>{ticket.metadata?.browser || "—"}</dd>
+        <dt>Device Type</dt>
+        <dd>{ticket.metadata?.device_type || "—"}</dd>
       </dl>
     </div>
   </section>
@@ -62,7 +77,12 @@
   <section>
     <div class="classify-header">
       <h3>Auto-Classification</h3>
-      <button type="button" class="btn-primary" on:click={onClassify} disabled={classifying}>
+      <button
+        type="button"
+        class="btn-primary"
+        on:click={onClassify}
+        disabled={classifying}
+      >
         {classifying ? "Classifying…" : "Trigger Auto-Classify"}
       </button>
     </div>

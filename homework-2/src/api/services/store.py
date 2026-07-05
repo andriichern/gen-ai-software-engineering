@@ -2,10 +2,9 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Optional
 from uuid import UUID
 
-from ..models import Category, Priority, Status, Ticket
+from ..models import Status, Ticket, TicketFilters
 
 
 class TicketNotFoundError(Exception):
@@ -30,28 +29,20 @@ class TicketStore:
             raise TicketNotFoundError(ticket_id)
         return ticket
 
-    def list(
-        self,
-        category: Optional[Category] = None,
-        priority: Optional[Priority] = None,
-        status: Optional[Status] = None,
-        customer_id: Optional[str] = None,
-        assigned_to: Optional[str] = None,
-        tag: Optional[str] = None,
-    ) -> list[Ticket]:
+    def list(self, filters: TicketFilters) -> list[Ticket]:
         results = list(self._tickets.values())
-        if category is not None:
-            results = [t for t in results if t.category == category]
-        if priority is not None:
-            results = [t for t in results if t.priority == priority]
-        if status is not None:
-            results = [t for t in results if t.status == status]
-        if customer_id is not None:
-            results = [t for t in results if t.customer_id == customer_id]
-        if assigned_to is not None:
-            results = [t for t in results if t.assigned_to == assigned_to]
-        if tag is not None:
-            results = [t for t in results if tag in t.tags]
+        if filters.category is not None:
+            results = [t for t in results if t.category == filters.category]
+        if filters.priority is not None:
+            results = [t for t in results if t.priority == filters.priority]
+        if filters.status is not None:
+            results = [t for t in results if t.status == filters.status]
+        if filters.customer_id is not None:
+            results = [t for t in results if t.customer_id == filters.customer_id]
+        if filters.assigned_to is not None:
+            results = [t for t in results if t.assigned_to == filters.assigned_to]
+        if filters.tag is not None:
+            results = [t for t in results if filters.tag in t.tags]
         return results
 
     def update(self, ticket_id: UUID, updated: Ticket) -> Ticket:

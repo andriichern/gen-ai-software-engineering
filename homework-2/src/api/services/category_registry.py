@@ -19,7 +19,16 @@ _DEFAULT_CATEGORY_KEYWORDS: list[tuple[str, list[str]]] = [
     ),
     (
         "account_access",
-        ["login", "log in", "password", "2fa", "two-factor", "authentication", "locked out", "sign in"],
+        [
+            "login",
+            "log in",
+            "password",
+            "2fa",
+            "two-factor",
+            "authentication",
+            "locked out",
+            "sign in",
+        ],
     ),
     (
         "billing_question",
@@ -27,7 +36,14 @@ _DEFAULT_CATEGORY_KEYWORDS: list[tuple[str, list[str]]] = [
     ),
     (
         "feature_request",
-        ["feature request", "enhancement", "suggestion", "would be nice", "please add", "could you add"],
+        [
+            "feature request",
+            "enhancement",
+            "suggestion",
+            "would be nice",
+            "please add",
+            "could you add",
+        ],
     ),
     (
         "technical_issue",

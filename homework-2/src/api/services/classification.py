@@ -58,7 +58,8 @@ def classify_ticket(subject: str, description: str) -> ClassificationResult:
     reasoning_parts = []
     if category_matches:
         reasoning_parts.append(
-            f"category '{category}' matched the most keywords ({len(category_matches)}): {category_matches}"
+            f"category '{category}' matched the most keywords "
+            f"({len(category_matches)}): {category_matches}"
         )
     else:
         reasoning_parts.append(f"no category keywords matched, defaulted to '{category}'")

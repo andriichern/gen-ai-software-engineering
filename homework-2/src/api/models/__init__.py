@@ -25,10 +25,13 @@ def _validate_category(value: str) -> str:
 def _validate_category_key(value: str) -> str:
     if not _CATEGORY_KEY_PATTERN.match(value):
         raise ValueError(
-            "Category key must be lowercase snake_case, starting with a letter (e.g. 'shipping_delay')"
+            "Category key must be lowercase snake_case, starting with a letter "
+            "(e.g. 'shipping_delay')"
         )
     if value == OTHER_CATEGORY:
-        raise ValueError("'other' is the reserved fallback category and cannot be managed via this API")
+        raise ValueError(
+            "'other' is the reserved fallback category and cannot be managed via this API"
+        )
     return value
 
 
@@ -132,7 +135,7 @@ class Ticket(BaseModel):
         return cls(**dump)
 
 
-class ImportError_(BaseModel):
+class ImportRowError(BaseModel):
     index: int
     error: str
 
@@ -141,7 +144,7 @@ class ImportSummary(BaseModel):
     total: int
     successful: int
     failed: int
-    errors: list[ImportError_] = Field(default_factory=list)
+    errors: list[ImportRowError] = Field(default_factory=list)
 
 
 class ClassificationResult(BaseModel):
@@ -164,3 +167,15 @@ class CategoryCreate(BaseModel):
 
 class CategoryKeywordsUpdate(BaseModel):
     keywords: list[str]
+
+
+class TicketFilters(BaseModel):
+    """Groups GET /tickets' query filters into one object so routes and the
+    store don't need a long positional-parameter list for each filter."""
+
+    category: Optional[Category] = None
+    priority: Optional[Priority] = None
+    status: Optional[Status] = None
+    customer_id: Optional[str] = None
+    assigned_to: Optional[str] = None
+    tag: Optional[str] = None

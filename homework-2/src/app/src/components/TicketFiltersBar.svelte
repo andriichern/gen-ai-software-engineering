@@ -3,7 +3,14 @@
   import { titleCase } from "../utils/format.js";
 
   export let categories = [];
-  export let filters = { category: "", priority: "", status: "", customer_id: "", assigned_to: "", tag: "" };
+  export let filters = {
+    category: "",
+    priority: "",
+    status: "",
+    customer_id: "",
+    assigned_to: "",
+    tag: "",
+  };
   export let onChange = () => {};
 
   function update() {
@@ -11,7 +18,14 @@
   }
 
   function clearAll() {
-    filters = { category: "", priority: "", status: "", customer_id: "", assigned_to: "", tag: "" };
+    filters = {
+      category: "",
+      priority: "",
+      status: "",
+      customer_id: "",
+      assigned_to: "",
+      tag: "",
+    };
     update();
   }
 </script>
@@ -21,7 +35,7 @@
     Category
     <select bind:value={filters.category} on:change={update}>
       <option value="">All</option>
-      {#each categories as c}
+      {#each categories as c (c.category)}
         <option value={c.category}>{titleCase(c.category)}</option>
       {/each}
       <option value="other">Other</option>
@@ -32,7 +46,7 @@
     Priority
     <select bind:value={filters.priority} on:change={update}>
       <option value="">All</option>
-      {#each PRIORITIES as p}
+      {#each PRIORITIES as p (p)}
         <option value={p}>{titleCase(p)}</option>
       {/each}
     </select>
@@ -42,7 +56,7 @@
     Status
     <select bind:value={filters.status} on:change={update}>
       <option value="">All</option>
-      {#each STATUSES as s}
+      {#each STATUSES as s (s)}
         <option value={s}>{titleCase(s)}</option>
       {/each}
     </select>
@@ -50,20 +64,37 @@
 
   <label>
     Customer ID
-    <input type="text" bind:value={filters.customer_id} on:input={update} placeholder="cust-123" />
+    <input
+      type="text"
+      bind:value={filters.customer_id}
+      on:input={update}
+      placeholder="cust-123"
+    />
   </label>
 
   <label>
     Assigned To
-    <input type="text" bind:value={filters.assigned_to} on:input={update} placeholder="agent-1" />
+    <input
+      type="text"
+      bind:value={filters.assigned_to}
+      on:input={update}
+      placeholder="agent-1"
+    />
   </label>
 
   <label>
     Tag
-    <input type="text" bind:value={filters.tag} on:input={update} placeholder="vip" />
+    <input
+      type="text"
+      bind:value={filters.tag}
+      on:input={update}
+      placeholder="vip"
+    />
   </label>
 
-  <button type="button" class="btn-secondary" on:click={clearAll}>Clear filters</button>
+  <button type="button" class="btn-secondary" on:click={clearAll}
+    >Clear filters</button
+  >
 </div>
 
 <style>
@@ -81,7 +112,8 @@
     color: #475569;
     gap: 0.25rem;
   }
-  select, input {
+  select,
+  input {
     padding: 0.4rem 0.5rem;
     border: 1px solid #cbd5e1;
     border-radius: 6px;
