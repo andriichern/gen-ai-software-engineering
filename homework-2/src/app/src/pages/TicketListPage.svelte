@@ -10,7 +10,14 @@
   let tickets = [];
   let categories = [];
   let loading = true;
-  let filters = { category: "", priority: "", status: "", customer_id: "", assigned_to: "", tag: "" };
+  let filters = {
+    category: "",
+    priority: "",
+    status: "",
+    customer_id: "",
+    assigned_to: "",
+    tag: "",
+  };
 
   async function loadTickets() {
     loading = true;

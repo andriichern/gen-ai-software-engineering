@@ -1,0 +1,14 @@
+[tool.pylint.main]
+py-version = "3.9"
+
+[tool.pylint."messages control"]
+disable = [
+    # This project's convention is no docstrings unless the WHY is non-obvious
+    # (see CLAUDE.local.md); enforcing them here would just add boilerplate.
+    "missing-module-docstring",
+    "missing-class-docstring",
+    "missing-function-docstring",
+    # Constant false positive on Pydantic models: small data-only classes with
+    # no methods are the intended shape, not a code smell.
+    "too-few-public-methods",
+]

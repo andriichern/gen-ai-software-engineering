@@ -14,8 +14,12 @@
     {#each tickets as ticket (ticket.id)}
       <div class="ticket-row">
         <div class="ticket-main">
-          <Link to={`/tickets/${ticket.id}`} class="ticket-subject">{ticket.subject}</Link>
-          <span class="ticket-customer">{ticket.customer_name} · {ticket.customer_email}</span>
+          <Link to={`/tickets/${ticket.id}`} class="ticket-subject"
+            >{ticket.subject}</Link
+          >
+          <span class="ticket-customer"
+            >{ticket.customer_name} · {ticket.customer_email}</span
+          >
         </div>
         <div class="ticket-meta">
           <Badge value={ticket.category} kind="category" />
@@ -25,7 +29,11 @@
         <div class="ticket-date">{formatDateTime(ticket.created_at)}</div>
         <div class="ticket-actions">
           <Link to={`/tickets/${ticket.id}/edit`}>Edit</Link>
-          <button type="button" class="btn-danger-link" on:click={() => onDelete(ticket)}>Delete</button>
+          <button
+            type="button"
+            class="btn-danger-link"
+            on:click={() => onDelete(ticket)}>Delete</button
+          >
         </div>
       </div>
     {/each}

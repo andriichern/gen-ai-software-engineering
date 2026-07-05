@@ -5,7 +5,7 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from ..models import Source, Ticket, TicketCreate, TicketMetadata
+from ..models import ImportRowError, ImportSummary, Source, Ticket, TicketCreate, TicketMetadata
 
 
 class RowParseError(Exception):
@@ -47,4 +47,29 @@ def row_to_ticket(row: dict[str, Any]) -> Ticket:
     return Ticket.from_create(create)
 
 
-__all__ = ["row_to_ticket", "RowParseError", "ValidationError"]
+def collect_tickets(indexed_rows: Any, errors: list[ImportRowError]) -> list[Ticket]:
+    """Shared per-row loop over (index, row) pairs: builds a Ticket for each
+    row, appending a validation error to `errors` (in place) instead of
+    raising for bad rows. Callers pre-filter rows that aren't even the right
+    shape (e.g. a JSON array entry that isn't an object) before calling this,
+    so indices stay aligned to the original input."""
+    tickets: list[Ticket] = []
+    for index, row in indexed_rows:
+        try:
+            tickets.append(row_to_ticket(row))
+        except ValidationError as exc:
+            errors.append(ImportRowError(index=index, error=str(exc)))
+    return tickets
+
+
+def build_summary(total: int, tickets: list[Ticket], errors: list[ImportRowError]) -> ImportSummary:
+    return ImportSummary(total=total, successful=len(tickets), failed=len(errors), errors=errors)
+
+
+__all__ = [
+    "row_to_ticket",
+    "collect_tickets",
+    "build_summary",
+    "RowParseError",
+    "ValidationError",
+]

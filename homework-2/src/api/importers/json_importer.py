@@ -3,10 +3,8 @@ from __future__ import annotations
 
 import json
 
-from pydantic import ValidationError
-
-from ..models import ImportError_, ImportSummary, Ticket
-from .base import RowParseError, row_to_ticket
+from ..models import ImportRowError, ImportSummary, Ticket
+from .base import RowParseError, build_summary, collect_tickets
 
 
 def parse_json(content: bytes) -> tuple[list[Ticket], ImportSummary]:
@@ -20,24 +18,13 @@ def parse_json(content: bytes) -> tuple[list[Ticket], ImportSummary]:
     if not isinstance(data, list):
         raise RowParseError("Expected a JSON array of tickets or {'tickets': [...]}")
 
-    tickets: list[Ticket] = []
-    errors: list[ImportError_] = []
-    total = 0
-
+    errors: list[ImportRowError] = []
+    valid_rows = []
     for index, row in enumerate(data):
-        total += 1
-        if not isinstance(row, dict):
-            errors.append(ImportError_(index=index, error="Record is not a JSON object"))
-            continue
-        try:
-            tickets.append(row_to_ticket(row))
-        except ValidationError as exc:
-            errors.append(ImportError_(index=index, error=str(exc)))
+        if isinstance(row, dict):
+            valid_rows.append((index, row))
+        else:
+            errors.append(ImportRowError(index=index, error="Record is not a JSON object"))
 
-    summary = ImportSummary(
-        total=total,
-        successful=len(tickets),
-        failed=len(errors),
-        errors=errors,
-    )
-    return tickets, summary
+    tickets = collect_tickets(valid_rows, errors)
+    return tickets, build_summary(len(data), tickets, errors)

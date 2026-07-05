@@ -1,23 +1,20 @@
 """Ticket API routes."""
 from __future__ import annotations
 
-from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile
 
 from ..importers.base import RowParseError
 from ..importers.csv_importer import parse_csv
 from ..importers.json_importer import parse_json
 from ..importers.xml_importer import parse_xml
 from ..models import (
-    Category,
     ClassificationResult,
     ImportSummary,
-    Priority,
-    Status,
     Ticket,
     TicketCreate,
+    TicketFilters,
     TicketUpdate,
 )
 from ..services.classification import classify_ticket
@@ -73,22 +70,8 @@ async def import_tickets(file: UploadFile, auto_classify: bool = Query(False)):
 
 
 @router.get("", response_model=list[Ticket])
-def list_tickets(
-    category: Optional[Category] = None,
-    priority: Optional[Priority] = None,
-    status: Optional[Status] = None,
-    customer_id: Optional[str] = None,
-    assigned_to: Optional[str] = None,
-    tag: Optional[str] = None,
-):
-    return store.list(
-        category=category,
-        priority=priority,
-        status=status,
-        customer_id=customer_id,
-        assigned_to=assigned_to,
-        tag=tag,
-    )
+def list_tickets(filters: TicketFilters = Depends()):
+    return store.list(filters)
 
 
 @router.get("/{ticket_id}", response_model=Ticket)
