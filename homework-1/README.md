@@ -1,7 +1,7 @@
 # Banking Transactions API
 
-> **Student Name**: [Your Name]
-> **Date Submitted**: [Date]
+> **Student Name**: Andrii Chernenko
+> **Date Submitted**: 01.07.2026
 > **AI Tools Used**: Kiro (AI-Assisted Development)
 
 ---
