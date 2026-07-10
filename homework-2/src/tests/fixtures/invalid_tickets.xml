@@ -1,0 +1,67 @@
+<tickets>
+  <ticket>
+    <customer_id>cust-0301</customer_id>
+    <customer_email>customer301@example.com</customer_email>
+    <customer_name>Customer 301</customer_name>
+    <subject>Credit card billing issue #301</subject>
+    <description>My credit card was billed for a subscription I already cancelled.</description>
+    <tags>trial</tags>
+    <source>chat</source>
+    <browser>Chrome</browser>
+    <device_type>desktop</device_type>
+    <assigned_to></assigned_to>
+    <category></category>
+  </ticket>
+  <ticket>
+    <customer_id>cust-0302</customer_id>
+    <customer_email>still-not-an-email</customer_email>
+    <customer_name>Customer 302</customer_name>
+    <subject>Feature request: dark mode #302</subject>
+    <description>It would be nice to have a dark mode enhancement in the settings.</description>
+    <tags>urgent</tags>
+    <source>api</source>
+    <browser>Safari</browser>
+    <device_type>mobile</device_type>
+    <assigned_to></assigned_to>
+    <category></category>
+  </ticket>
+  <ticket>
+    <customer_id>cust-0303</customer_id>
+    <customer_email>customer303@example.com</customer_email>
+    <customer_name>Customer 303</customer_name>
+    <subject>Site not working after update #303</subject>
+    <description>short</description>
+    <tags>trial</tags>
+    <source>phone</source>
+    <browser>Safari</browser>
+    <device_type>mobile</device_type>
+    <assigned_to>agent-3</assigned_to>
+    <category></category>
+  </ticket>
+  <ticket>
+    <customer_id>cust-0304</customer_id>
+    <customer_email>customer304@example.com</customer_email>
+    <customer_name>Customer 304</customer_name>
+    <subject></subject>
+    <description>Wanted to share some general feedback about the support experience.</description>
+    <tags>enterprise</tags>
+    <source>api</source>
+    <browser>Firefox</browser>
+    <device_type>desktop</device_type>
+    <assigned_to></assigned_to>
+    <category></category>
+  </ticket>
+  <ticket>
+    <customer_id>cust-0305</customer_id>
+    <customer_email>customer305@example.com</customer_email>
+    <customer_name>Customer 305</customer_name>
+    <subject>General question #305</subject>
+    <description>Just wanted to say the onboarding experience was pretty smooth overall.</description>
+    <tags>vip</tags>
+    <source>phone</source>
+    <browser>Firefox</browser>
+    <device_type>desktop</device_type>
+    <assigned_to></assigned_to>
+    <category>not_a_category</category>
+  </ticket>
+</tickets>

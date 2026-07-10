@@ -1,0 +1,362 @@
+<tickets>
+  <ticket>
+    <customer_id>cust-0001</customer_id>
+    <customer_email>customer1@example.com</customer_email>
+    <customer_name>Customer 1</customer_name>
+    <subject>Regression in latest release #1</subject>
+    <description>This is a regression from last week's release, reproduction steps attached below.</description>
+    <tags>enterprise</tags>
+    <source>phone</source>
+    <browser>Firefox</browser>
+    <device_type>desktop</device_type>
+    <assigned_to></assigned_to>
+  </ticket>
+  <ticket>
+    <customer_id>cust-0002</customer_id>
+    <customer_email>customer2@example.com</customer_email>
+    <customer_name>Customer 2</customer_name>
+    <subject>Defect in report totals #2</subject>
+    <description>Found a defect where reproduction steps show totals off by one, easy to reproduce.</description>
+    <tags>urgent</tags>
+    <source>phone</source>
+    <browser>Safari</browser>
+    <device_type>mobile</device_type>
+    <assigned_to></assigned_to>
+  </ticket>
+  <ticket>
+    <customer_id>cust-0003</customer_id>
+    <customer_email>customer3@example.com</customer_email>
+    <customer_name>Customer 3</customer_name>
+    <subject>App crashes on startup #3</subject>
+    <description>The app crashes with an error every time I open it, exception in the logs too.</description>
+    <tags>enterprise</tags>
+    <source>email</source>
+    <browser></browser>
+    <device_type>tablet</device_type>
+    <assigned_to>agent-3</assigned_to>
+  </ticket>
+  <ticket>
+    <customer_id>cust-0004</customer_id>
+    <customer_email>customer4@example.com</customer_email>
+    <customer_name>Customer 4</customer_name>
+    <subject>Site not working after update #4</subject>
+    <description>The site is not working since the update, keeps throwing a crash error.</description>
+    <tags>trial</tags>
+    <source>chat</source>
+    <browser></browser>
+    <device_type>tablet</device_type>
+    <assigned_to></assigned_to>
+  </ticket>
+  <ticket>
+    <customer_id>cust-0005</customer_id>
+    <customer_email>customer5@example.com</customer_email>
+    <customer_name>Customer 5</customer_name>
+    <subject>Credit card billing issue #5</subject>
+    <description>My credit card was billed for a subscription I already cancelled.</description>
+    <tags>urgent</tags>
+    <source>web_form</source>
+    <browser>Safari</browser>
+    <device_type>tablet</device_type>
+    <assigned_to></assigned_to>
+  </ticket>
+  <ticket>
+    <customer_id>cust-0006</customer_id>
+    <customer_email>customer6@example.com</customer_email>
+    <customer_name>Customer 6</customer_name>
+    <subject>Feedback about support #6</subject>
+    <description>Wanted to share some general feedback about the support experience.</description>
+    <tags></tags>
+    <source>email</source>
+    <browser>Safari</browser>
+    <device_type>desktop</device_type>
+    <assigned_to>agent-1</assigned_to>
+  </ticket>
+  <ticket>
+    <customer_id>cust-0007</customer_id>
+    <customer_email>customer7@example.com</customer_email>
+    <customer_name>Customer 7</customer_name>
+    <subject>Question about my invoice #7</subject>
+    <description>My latest invoice shows a charge I don't recognize on my subscription.</description>
+    <tags></tags>
+    <source>web_form</source>
+    <browser>Firefox</browser>
+    <device_type>mobile</device_type>
+    <assigned_to></assigned_to>
+  </ticket>
+  <ticket>
+    <customer_id>cust-0008</customer_id>
+    <customer_email>customer8@example.com</customer_email>
+    <customer_name>Customer 8</customer_name>
+    <subject>App crashes on startup #8</subject>
+    <description>The app crashes with an error every time I open it, exception in the logs too.</description>
+    <tags>trial</tags>
+    <source>phone</source>
+    <browser>Firefox</browser>
+    <device_type>tablet</device_type>
+    <assigned_to></assigned_to>
+  </ticket>
+  <ticket>
+    <customer_id>cust-0009</customer_id>
+    <customer_email>customer9@example.com</customer_email>
+    <customer_name>Customer 9</customer_name>
+    <subject>Feedback about support #9</subject>
+    <description>Wanted to share some general feedback about the support experience.</description>
+    <tags>trial</tags>
+    <source>email</source>
+    <browser>Firefox</browser>
+    <device_type>tablet</device_type>
+    <assigned_to>agent-4</assigned_to>
+  </ticket>
+  <ticket>
+    <customer_id>cust-0010</customer_id>
+    <customer_email>customer10@example.com</customer_email>
+    <customer_name>Customer 10</customer_name>
+    <subject>General question #10</subject>
+    <description>Just wanted to say the onboarding experience was pretty smooth overall.</description>
+    <tags></tags>
+    <source>chat</source>
+    <browser>Firefox</browser>
+    <device_type>desktop</device_type>
+    <assigned_to></assigned_to>
+  </ticket>
+  <ticket>
+    <customer_id>cust-0011</customer_id>
+    <customer_email>customer11@example.com</customer_email>
+    <customer_name>Customer 11</customer_name>
+    <subject>Feedback about support #11</subject>
+    <description>Wanted to share some general feedback about the support experience.</description>
+    <tags></tags>
+    <source>phone</source>
+    <browser>Firefox</browser>
+    <device_type>desktop</device_type>
+    <assigned_to></assigned_to>
+  </ticket>
+  <ticket>
+    <customer_id>cust-0012</customer_id>
+    <customer_email>customer12@example.com</customer_email>
+    <customer_name>Customer 12</customer_name>
+    <subject>Bug: crash on save, steps to reproduce included #12</subject>
+    <description>Steps to reproduce: open the editor, click save twice, it crashes every time.</description>
+    <tags>beta</tags>
+    <source>phone</source>
+    <browser>Safari</browser>
+    <device_type>mobile</device_type>
+    <assigned_to>agent-2</assigned_to>
+  </ticket>
+  <ticket>
+    <customer_id>cust-0013</customer_id>
+    <customer_email>customer13@example.com</customer_email>
+    <customer_name>Customer 13</customer_name>
+    <subject>Site not working after update #13</subject>
+    <description>The site is not working since the update, keeps throwing a crash error.</description>
+    <tags>trial,beta</tags>
+    <source>email</source>
+    <browser></browser>
+    <device_type>mobile</device_type>
+    <assigned_to></assigned_to>
+  </ticket>
+  <ticket>
+    <customer_id>cust-0014</customer_id>
+    <customer_email>customer14@example.com</customer_email>
+    <customer_name>Customer 14</customer_name>
+    <subject>Feature request: dark mode #14</subject>
+    <description>It would be nice to have a dark mode enhancement in the settings.</description>
+    <tags>enterprise,trial</tags>
+    <source>email</source>
+    <browser>Safari</browser>
+    <device_type>mobile</device_type>
+    <assigned_to></assigned_to>
+  </ticket>
+  <ticket>
+    <customer_id>cust-0015</customer_id>
+    <customer_email>customer15@example.com</customer_email>
+    <customer_name>Customer 15</customer_name>
+    <subject>Password reset not working #15</subject>
+    <description>The password reset email never arrives so I cannot sign in.</description>
+    <tags>urgent</tags>
+    <source>api</source>
+    <browser>Safari</browser>
+    <device_type>mobile</device_type>
+    <assigned_to>agent-0</assigned_to>
+  </ticket>
+  <ticket>
+    <customer_id>cust-0016</customer_id>
+    <customer_email>customer16@example.com</customer_email>
+    <customer_name>Customer 16</customer_name>
+    <subject>App crashes on startup #16</subject>
+    <description>The app crashes with an error every time I open it, exception in the logs too.</description>
+    <tags></tags>
+    <source>email</source>
+    <browser>Firefox</browser>
+    <device_type>mobile</device_type>
+    <assigned_to></assigned_to>
+  </ticket>
+  <ticket>
+    <customer_id>cust-0017</customer_id>
+    <customer_email>customer17@example.com</customer_email>
+    <customer_name>Customer 17</customer_name>
+    <subject>General question #17</subject>
+    <description>Just wanted to say the onboarding experience was pretty smooth overall.</description>
+    <tags>urgent,vip</tags>
+    <source>chat</source>
+    <browser></browser>
+    <device_type>mobile</device_type>
+    <assigned_to></assigned_to>
+  </ticket>
+  <ticket>
+    <customer_id>cust-0018</customer_id>
+    <customer_email>customer18@example.com</customer_email>
+    <customer_name>Customer 18</customer_name>
+    <subject>Broken dashboard widget #18</subject>
+    <description>The dashboard widget is broken and fails to load, shows an error instead.</description>
+    <tags>vip</tags>
+    <source>email</source>
+    <browser></browser>
+    <device_type>mobile</device_type>
+    <assigned_to>agent-3</assigned_to>
+  </ticket>
+  <ticket>
+    <customer_id>cust-0019</customer_id>
+    <customer_email>customer19@example.com</customer_email>
+    <customer_name>Customer 19</customer_name>
+    <subject>Site not working after update #19</subject>
+    <description>The site is not working since the update, keeps throwing a crash error.</description>
+    <tags></tags>
+    <source>phone</source>
+    <browser></browser>
+    <device_type>mobile</device_type>
+    <assigned_to></assigned_to>
+  </ticket>
+  <ticket>
+    <customer_id>cust-0020</customer_id>
+    <customer_email>customer20@example.com</customer_email>
+    <customer_name>Customer 20</customer_name>
+    <subject>Locked out after 2FA setup #20</subject>
+    <description>I set up two-factor authentication and now I'm locked out completely.</description>
+    <tags>trial</tags>
+    <source>chat</source>
+    <browser>Firefox</browser>
+    <device_type>mobile</device_type>
+    <assigned_to></assigned_to>
+  </ticket>
+  <ticket>
+    <customer_id>cust-0021</customer_id>
+    <customer_email>customer21@example.com</customer_email>
+    <customer_name>Customer 21</customer_name>
+    <subject>Refund request for duplicate charge #21</subject>
+    <description>I was charged twice for the same payment, please refund the extra charge.</description>
+    <tags>trial</tags>
+    <source>web_form</source>
+    <browser></browser>
+    <device_type>mobile</device_type>
+    <assigned_to>agent-1</assigned_to>
+  </ticket>
+  <ticket>
+    <customer_id>cust-0022</customer_id>
+    <customer_email>customer22@example.com</customer_email>
+    <customer_name>Customer 22</customer_name>
+    <subject>Feedback about support #22</subject>
+    <description>Wanted to share some general feedback about the support experience.</description>
+    <tags>urgent,trial</tags>
+    <source>email</source>
+    <browser>Chrome</browser>
+    <device_type>mobile</device_type>
+    <assigned_to></assigned_to>
+  </ticket>
+  <ticket>
+    <customer_id>cust-0023</customer_id>
+    <customer_email>customer23@example.com</customer_email>
+    <customer_name>Customer 23</customer_name>
+    <subject>Site not working after update #23</subject>
+    <description>The site is not working since the update, keeps throwing a crash error.</description>
+    <tags>vip,beta</tags>
+    <source>chat</source>
+    <browser>Firefox</browser>
+    <device_type>mobile</device_type>
+    <assigned_to></assigned_to>
+  </ticket>
+  <ticket>
+    <customer_id>cust-0024</customer_id>
+    <customer_email>customer24@example.com</customer_email>
+    <customer_name>Customer 24</customer_name>
+    <subject>Question about my invoice #24</subject>
+    <description>My latest invoice shows a charge I don't recognize on my subscription.</description>
+    <tags>trial</tags>
+    <source>api</source>
+    <browser>Firefox</browser>
+    <device_type>mobile</device_type>
+    <assigned_to>agent-4</assigned_to>
+  </ticket>
+  <ticket>
+    <customer_id>cust-0025</customer_id>
+    <customer_email>customer25@example.com</customer_email>
+    <customer_name>Customer 25</customer_name>
+    <subject>Suggestion for export option #25</subject>
+    <description>Could you add a suggestion box for exporting reports as CSV, that would help a lot.</description>
+    <tags>enterprise</tags>
+    <source>chat</source>
+    <browser>Safari</browser>
+    <device_type>desktop</device_type>
+    <assigned_to></assigned_to>
+  </ticket>
+  <ticket>
+    <customer_id>cust-0026</customer_id>
+    <customer_email>customer26@example.com</customer_email>
+    <customer_name>Customer 26</customer_name>
+    <subject>Bug: crash on save, steps to reproduce included #26</subject>
+    <description>Steps to reproduce: open the editor, click save twice, it crashes every time.</description>
+    <tags>beta,vip</tags>
+    <source>api</source>
+    <browser>Firefox</browser>
+    <device_type>tablet</device_type>
+    <assigned_to></assigned_to>
+  </ticket>
+  <ticket>
+    <customer_id>cust-0027</customer_id>
+    <customer_email>customer27@example.com</customer_email>
+    <customer_name>Customer 27</customer_name>
+    <subject>Password reset not working #27</subject>
+    <description>The password reset email never arrives so I cannot sign in.</description>
+    <tags></tags>
+    <source>web_form</source>
+    <browser>Firefox</browser>
+    <device_type>desktop</device_type>
+    <assigned_to>agent-2</assigned_to>
+  </ticket>
+  <ticket>
+    <customer_id>cust-0028</customer_id>
+    <customer_email>customer28@example.com</customer_email>
+    <customer_name>Customer 28</customer_name>
+    <subject>Password reset not working #28</subject>
+    <description>The password reset email never arrives so I cannot sign in.</description>
+    <tags></tags>
+    <source>email</source>
+    <browser>Firefox</browser>
+    <device_type>mobile</device_type>
+    <assigned_to></assigned_to>
+  </ticket>
+  <ticket>
+    <customer_id>cust-0029</customer_id>
+    <customer_email>customer29@example.com</customer_email>
+    <customer_name>Customer 29</customer_name>
+    <subject>General question #29</subject>
+    <description>Just wanted to say the onboarding experience was pretty smooth overall.</description>
+    <tags>urgent,trial</tags>
+    <source>api</source>
+    <browser>Safari</browser>
+    <device_type>desktop</device_type>
+    <assigned_to></assigned_to>
+  </ticket>
+  <ticket>
+    <customer_id>cust-0030</customer_id>
+    <customer_email>customer30@example.com</customer_email>
+    <customer_name>Customer 30</customer_name>
+    <subject>Site not working after update #30</subject>
+    <description>The site is not working since the update, keeps throwing a crash error.</description>
+    <tags>vip,urgent</tags>
+    <source>api</source>
+    <browser>Chrome</browser>
+    <device_type>tablet</device_type>
+    <assigned_to>agent-0</assigned_to>
+  </ticket>
+</tickets>
