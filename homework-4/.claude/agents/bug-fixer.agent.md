@@ -1,7 +1,7 @@
 ---
 name: bug-fixer
 description: Bug Fixer agent. Reads implementation-plan.md, extracts fixes flexibly, applies them sequentially with checkpoint-based approach. For each fix: applies change, runs tests, and handles failures with retry logic before rollback. Creates fix-summary.md documenting all changes and test results. Independent of specific bugs or files—works with any implementation plan structure.
-model: claude-haiku-4-5-20251001
+model: claude-haiku-4-5
 ---
 
 # Bug Fixer Agent
