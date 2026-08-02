@@ -9,18 +9,22 @@ export function validateCreateOrder(input: unknown): { valid: boolean; errors?: 
   const data = input as Record<string, unknown>;
   const errors: Record<string, string> = {};
 
-  // BUG-1: No validation for orderedItems
-  // Should check: array type, non-empty, elements are strings
-  // Currently: accepts empty arrays, null, undefined, non-arrays
-  if (typeof data.orderedItems !== "undefined" && !Array.isArray(data.orderedItems)) {
+  // BUG-1: Validate orderedItems - array type, non-empty, elements are strings
+  if (typeof data.orderedItems === "undefined") {
+    errors.orderedItems = "orderedItems is required";
+  } else if (!Array.isArray(data.orderedItems)) {
     errors.orderedItems = "orderedItems must be an array";
+  } else if (data.orderedItems.length === 0) {
+    errors.orderedItems = "orderedItems must not be empty";
+  } else if (!data.orderedItems.every((item) => typeof item === "string")) {
+    errors.orderedItems = "all orderedItems must be strings";
   }
 
-  // BUG-2: No validation for deliveryAddress - allows empty/null strings
-  // Should check: non-empty string
-  // Currently: allows "", null, undefined
+  // BUG-2: Validate deliveryAddress - non-empty string
   if (typeof data.deliveryAddress !== "string") {
     errors.deliveryAddress = "deliveryAddress must be a string";
+  } else if (data.deliveryAddress.trim().length === 0) {
+    errors.deliveryAddress = "deliveryAddress must not be empty";
   }
 
   // Validate customerId (basic check only)
