@@ -17,7 +17,9 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
-    "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand"
+    "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
+    "pipeline": "bash scripts/run-pipeline.sh --dry-run",
+    "pipeline:execute": "bash scripts/run-pipeline.sh --execute"
   },
   "dependencies": {
     "@nestjs/common": "^10.3.0",
