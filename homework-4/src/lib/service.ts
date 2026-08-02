@@ -1,12 +1,30 @@
 import { Order, OrderStatus, UpdateOrderInput } from "./types";
 import store from "./store";
+import { validateCreateOrder } from "./validator";
 
 function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 }
 
+// BUG-3: State machine for valid order status transitions
+const VALID_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
+  [OrderStatus.New]: [OrderStatus.Processing],
+  [OrderStatus.Processing]: [OrderStatus.InDelivery],
+  [OrderStatus.InDelivery]: [OrderStatus.Sent],
+  [OrderStatus.Sent]: [], // Terminal state - no transitions allowed
+};
+
+function isValidStatusTransition(currentStatus: OrderStatus, newStatus: OrderStatus): boolean {
+  return VALID_TRANSITIONS[currentStatus].includes(newStatus);
+}
+
 export class OrderService {
   static createOrder(customerId: string, orderedItems: string[], deliveryAddress: string): Order {
+    const validation = validateCreateOrder({ customerId, orderedItems, deliveryAddress });
+    if (!validation.valid) {
+      throw new Error(JSON.stringify(validation.errors));
+    }
+
     const order: Order = {
       id: generateId(),
       createdAt: new Date().toISOString(),
@@ -27,11 +45,9 @@ export class OrderService {
   static listOrders(filters?: { status?: string; customerId?: string; paid?: boolean; limit?: number; offset?: number }): { orders: Order[]; total: number } {
     let results = store.getAll();
 
-    // BUG-4: Status filter has loose comparison / incorrect logic
-    // Current: uses loose equality (==) and string search which can match partial strings
-    // e.g., filtering for "In" would match "In Delivery" and "New" due to poor logic
+    // BUG-4: Use strict equality for status filter (consistent with other filters)
     if (filters?.status) {
-      results = results.filter((order) => order.status == filters.status);
+      results = results.filter((order) => order.status === filters.status);
     }
 
     if (filters?.customerId) {
@@ -56,11 +72,15 @@ export class OrderService {
     const order = store.getById(id);
     if (!order) return undefined;
 
-    // BUG-3: No status transition validation
-    // Should prevent invalid state transitions (e.g., Sent -> Processing, Sent -> New)
-    // Currently: allows any transition from any state to any state
+    // BUG-3: Enforce valid status transitions
     if (updates.status) {
-      order.status = updates.status;
+      if (!isValidStatusTransition(order.status, updates.status)) {
+        // Do not update status if transition is invalid
+        // (other updates like deliveryAddress can still proceed, but status stays unchanged)
+        delete updates.status;
+      } else {
+        order.status = updates.status;
+      }
     }
 
     if (updates.deliveryAddress) {
@@ -78,7 +98,12 @@ export class OrderService {
     const order = store.getById(id);
     if (!order) return undefined;
 
-    // BUG-3: Same issue - no status transition validation
+    // BUG-3: Enforce valid status transitions
+    if (!isValidStatusTransition(order.status, newStatus)) {
+      // Return unchanged order (do not update status)
+      return order;
+    }
+
     order.status = newStatus;
     return store.update(id, order);
   }
