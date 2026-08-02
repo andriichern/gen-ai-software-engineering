@@ -51,7 +51,7 @@ temp/
 
 # Claude Code personal config
 CLAUDE.local.md
-.claude
+/.claude/
 
 # OS generated files
 .DS_Store
