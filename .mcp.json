@@ -6,6 +6,14 @@
       "headers": {
         "Authorization": "Bearer ${GITHUB_PAT}"
       }
+    },
+    "filesystem": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "~/Projects/gen-ai-software-engineering/"
+      ]
     }
   }
 }
