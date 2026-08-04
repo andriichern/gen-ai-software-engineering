@@ -60,3 +60,5 @@ CLAUDE.local.md
 .Spotlight-V100
 .Trashes
 ehthumbs.db
+
+*.lock

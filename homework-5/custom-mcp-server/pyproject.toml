@@ -1,0 +1,23 @@
+[project]
+name = "custom-mcp-server"
+version = "0.1.0"
+description = "Custom FastMCP server for Homework 5 Task 4 (lorem ipsum resource/tool)"
+requires-python = ">=3.10"
+dependencies = [
+    "fastmcp>=2.0.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["."]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
