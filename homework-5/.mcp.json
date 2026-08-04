@@ -9,15 +9,15 @@
     },
     "filesystem": {
       "command": "npx",
-      "args": [
-        "-y",
-        "@modelcontextprotocol/server-filesystem",
-        "~/Projects/gen-ai-software-engineering/"
-      ]
+      "args": ["-y", "@modelcontextprotocol/server-filesystem"]
     },
     "atlassian": {
       "type": "http",
       "url": "https://mcp.atlassian.com/v1/mcp/authv2"
+    },
+    "custom-lorem": {
+      "command": "uv",
+      "args": ["run", "--directory", "custom-mcp-server", "server.py"]
     }
   }
 }
