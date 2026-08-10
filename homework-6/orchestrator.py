@@ -20,7 +20,7 @@ from typing import Any, Dict
 
 import pycountry
 
-from lib.common import read_json, utc_now_iso, write_json
+from lib.common import clear_processing_file, list_json_files, read_json, utc_now_iso, write_json
 from lib.exchange_rates import ExchangeRateError, fetch_exchange_rates
 from pipeline import compliance, fraud_detection, reporting, settlement, validation
 
@@ -94,6 +94,15 @@ class StatusPublisher:
 def run(input_source: Path, shared_dir: Path) -> None:
     print(f"Wiping and recreating {shared_dir}/ ...")
     dirs = _wipe_and_create_shared_tree(shared_dir)
+
+    STAGES = {
+        "validation": lambda: validation.run_stage(dirs["input"], dirs["processing"], dirs["output"], dirs["results"]),
+        "fraud_detection": lambda: fraud_detection.run_stage(dirs["input"], dirs["processing"], dirs["output"], rates),
+        "compliance": lambda: compliance.run_stage(dirs["input"], dirs["processing"], dirs["output"], dirs["results"]),
+        "settlement": lambda: settlement.run_stage(dirs["input"], dirs["processing"], dirs["output"], dirs["results"]),
+        "reporting": lambda: reporting.run_stage(dirs["input"], dirs["processing"], dirs["output"], dirs["results"]),
+    }
+
     status_path = shared_dir / "status.json"
     status = StatusPublisher(status_path)
 
@@ -110,44 +119,23 @@ def run(input_source: Path, shared_dir: Path) -> None:
         raise SystemExit(1) from exc
     print(f"Exchange rates fetched: { {k: str(v) for k, v in rates.items()} }")
 
-    # --- Validation -------------------------------------------------------
-    print("\n=== Stage: validation ===")
-    status.start_stage("validation")
-    tally = validation.run_stage(dirs["input"], dirs["processing"], dirs["output"], dirs["results"])
-    status.complete_stage("validation", tally)
-    print(f"validation: processed={tally['processed']} passed={tally['passed']} failed={tally['failed']}")
-
-    # --- Fraud Detection ----------------------------------------------------
-    print("\n=== Stage: fraud_detection ===")
-    status.start_stage("fraud_detection")
-    tally = fraud_detection.run_stage(dirs["input"], dirs["processing"], dirs["output"], rates)
-    status.complete_stage("fraud_detection", tally)
-    print(f"fraud_detection: processed={tally['processed']} passed={tally['passed']} failed={tally['failed']}")
-
-    # --- Compliance Check -----------------------------------------------
-    print("\n=== Stage: compliance ===")
-    status.start_stage("compliance")
-    tally = compliance.run_stage(dirs["input"], dirs["processing"], dirs["output"], dirs["results"])
-    status.complete_stage("compliance", tally)
-    print(f"compliance: processed={tally['processed']} passed={tally['passed']} failed={tally['failed']}")
-
-    # --- Settlement Processing --------------------------------------------
-    print("\n=== Stage: settlement ===")
-    status.start_stage("settlement")
-    tally = settlement.run_stage(dirs["input"], dirs["processing"], dirs["output"], dirs["results"])
-    status.complete_stage("settlement", tally)
-    print(f"settlement: processed={tally['processed']} passed={tally['passed']} failed={tally['failed']}")
-
-    # --- Reporting ----------------------------------------------------------
-    print("\n=== Stage: reporting ===")
-    status.start_stage("reporting")
-    tally = reporting.run_stage(
-        dirs["input"], dirs["processing"], dirs["output"], dirs["results"], shared_dir / "report.json"
-    )
-    status.complete_stage("reporting", tally)
-    print(f"reporting: processed={tally['processed']} passed={tally['passed']} failed={tally['failed']}")
+    for name, stage_fn in STAGES.items():
+        print(f"\n=== Stage: {name} ===")
+        status.start_stage(name)
+        tally = stage_fn()
+        status.complete_stage(name, tally)
+        print(f"{name}: processed={tally['processed']} passed={tally['passed']} failed={tally['failed']}")
 
     status.complete_run()
+
+    # The run has now fully finished successfully -- shared/input/ has served
+    # its purpose (every stage that needed original fields has already read
+    # them) and is emptied of files, matching how output/ and processing/ are
+    # already left: the directory itself stays, only its files are removed.
+    print(f"Clearing {dirs['input']}/ ...")
+    for f in list_json_files(dirs["input"]):
+        clear_processing_file(f)
+
     print(f"\nRun complete. Results in {dirs['results']}/, summary at {shared_dir / 'report.json'}.")
 
 

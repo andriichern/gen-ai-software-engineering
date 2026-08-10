@@ -14,7 +14,7 @@
   "validation_result": {
     "status": "passed",
     "reason": null,
-    "checked_at": "2026-08-10T10:15:33.587495+00:00"
+    "checked_at": "2026-08-10T19:59:03.553885+00:00"
   },
   "fraud_result": {
     "score": "0.80",
@@ -24,12 +24,12 @@
       "unusual_hour_timing": false
     },
     "flagged": true,
-    "scored_at": "2026-08-10T10:15:33.592717+00:00"
+    "scored_at": "2026-08-10T19:59:04.569018+00:00"
   },
   "compliance_result": {
     "status": "held",
     "reason": "held for human review: fraud score 0.80 flagged this record",
-    "checked_at": "2026-08-10T10:15:33.596235+00:00"
+    "checked_at": "2026-08-10T19:59:05.589151+00:00"
   },
   "reason": "held for human review: fraud score 0.80 flagged this record",
   "final_status": "held"

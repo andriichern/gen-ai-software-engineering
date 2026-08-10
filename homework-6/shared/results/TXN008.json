@@ -14,7 +14,7 @@
   "validation_result": {
     "status": "passed",
     "reason": null,
-    "checked_at": "2026-08-10T10:15:33.591168+00:00"
+    "checked_at": "2026-08-10T19:59:03.557465+00:00"
   },
   "fraud_result": {
     "score": "0.30",
@@ -24,17 +24,17 @@
       "unusual_hour_timing": false
     },
     "flagged": false,
-    "scored_at": "2026-08-10T10:15:33.595018+00:00"
+    "scored_at": "2026-08-10T19:59:04.577615+00:00"
   },
   "compliance_result": {
     "status": "cleared",
     "reason": null,
-    "checked_at": "2026-08-10T10:15:33.598301+00:00"
+    "checked_at": "2026-08-10T19:59:05.596479+00:00"
   },
   "settlement_result": {
     "status": "settled",
-    "settlement_reference": "5d2a29e1-8396-49cc-9cc6-849137fbcbd4",
-    "settlement_timestamp": "2026-08-10T10:15:33.600496+00:00",
+    "settlement_reference": "f6297a16-9478-478a-9410-a0c68695da18",
+    "settlement_timestamp": "2026-08-10T19:59:06.611265+00:00",
     "settled_amount": "3200.00",
     "currency": "USD",
     "retention_period_years": 5

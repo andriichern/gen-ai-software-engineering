@@ -13,16 +13,14 @@ from typing import Any, Dict
 
 from lib.common import (
     audit,
-    clear_processing_file,
     lean_data,
-    list_json_files,
     make_envelope,
-    move_into_processing,
     read_json,
     utc_now_iso,
     write_envelope,
     write_final_result,
 )
+from lib.stage_runner import run_stage_loop
 
 STAGE_NAME = "compliance"
 
@@ -44,12 +42,8 @@ def check_compliance(record: Dict[str, Any], fraud: Dict[str, Any]) -> Dict[str,
         }
     return {"status": "cleared", "reason": None, "checked_at": utc_now_iso()}
 
-
 def run_stage(input_dir: Path, processing_dir: Path, output_dir: Path, results_dir: Path) -> Dict[str, int]:
-    processed = passed = failed = 0
-    for src in list_json_files(output_dir):
-        transaction_id = src.stem
-        working = move_into_processing(src, processing_dir)
+    def process_transaction(transaction_id: str, working: Path) -> bool:
         envelope = read_json(working)
         data = envelope["data"]
 
@@ -58,37 +52,36 @@ def run_stage(input_dir: Path, processing_dir: Path, output_dir: Path, results_d
         # itself (it needs no further original fields beyond what fraud already
         # gathered), per the "Function to CREATE" signature in specification.md.
         result = check_compliance(data, fraud_result)
-        processed += 1
 
         if result["status"] == "cleared":
-            passed += 1
             new_data = lean_data(transaction_id, data["amount"], data["currency"], {
                 "validation_result": data.get("validation_result"),
                 "fraud_result": fraud_result,
                 "compliance_result": result,
+                "country": data.get("country"),
+                "transaction_timestamp": data.get("transaction_timestamp"),
             })
             new_envelope = make_envelope(STAGE_NAME, "settlement", new_data)
             write_envelope(output_dir, transaction_id, new_envelope)
             audit(STAGE_NAME, transaction_id, "cleared")
-        else:
-            failed += 1
-            write_final_result(
-                results_dir,
-                input_dir,
-                transaction_id,
-                {
-                    "validation_result": data.get("validation_result"),
-                    "fraud_result": fraud_result,
-                    "compliance_result": result,
-                    "reason": result["reason"],
-                    "final_status": result["status"],
-                },
-            )
-            audit(STAGE_NAME, transaction_id, result["status"])
+            return True
 
-        clear_processing_file(working)
+        write_final_result(
+            results_dir,
+            input_dir,
+            transaction_id,
+            {
+                "validation_result": data.get("validation_result"),
+                "fraud_result": fraud_result,
+                "compliance_result": result,
+                "reason": result["reason"],
+                "final_status": result["status"],
+            },
+        )
+        audit(STAGE_NAME, transaction_id, result["status"])
+        return False
 
-    return {"processed": processed, "passed": passed, "failed": failed}
+    return run_stage_loop(output_dir, processing_dir, "move", process_transaction)
 
 
 def _default_shared_dir() -> Path:

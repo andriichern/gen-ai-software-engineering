@@ -2,89 +2,79 @@
 
 ## 1. High-Level Objective
 
-A banking transaction-processing pipeline that takes raw transaction records and moves each one through validation, fraud scoring, compliance review, settlement, and reporting, with the five stages exchanging work as JSON files in a shared directory tree beneath a single command-line orchestrator.
+The pipeline ingests transaction records, validates them, assesses fraud risk, enforces compliance with data protection law, settles the transactions, and produces a reconciled run report with full audit trail.
 
 ## 2. Mid-Level Objectives
 
-1. Each ingested record is validated against the canonical schema before any other stage sees it — required fields present, `amount` parseable as a decimal whether positive or negative, `currency` a genuine ISO 4217 code — and whatever fails is written to `shared/results/` with a `reason` identifying the precise failure and proceeds no further.
-2. Each validated record is assigned a weighted risk score from 0.00 to 1.00 together with the individual factors that produced it, so the outcome can be explained after the fact; the scoring stage flags records for review and has no power to reject or block one.
-3. Each record arriving at compliance is judged against the data-protection rules covering its PII and account data and leaves cleared, held, or rejected; held and rejected records end there with a `reason` recorded, and nothing that has not cleared can be settled.
-4. Each cleared record is settled into a settlement record carrying a timestamp, a generated reference, and a status, retained for the statutory period governing financial and audit data.
-5. Each record, however it ends, finishes as exactly one file in `shared/results/` joining its original fields to the results gathered at every stage it reached, and the run as a whole yields an aggregate summary of its outcomes.
-6. Each stage records an audit entry per record — ISO 8601 UTC timestamp, stage name, transaction ID, outcome — with no PII in plaintext, and the pipeline publishes its run state and results as plain, self-describing JSON so that a run's progress and outcome can be observed by any external process without coupling to the pipeline, parsing its logs, or counting files across directories.
+1. Validate every transaction for schema correctness, required fields, and valid currency codes; write invalid records to output with reason, blocking them from later stages.
+2. Score every valid transaction for fraud risk using a transparent, weighted rule-based approach; flag high-risk records (score ≥ 0.50) for manual review without auto-rejecting.
+3. Check every transaction against data protection compliance requirements (GDPR), applying privacy-by-design principles to all records regardless of geographic origin; hold flagged transactions pending review rather than auto-reacting.
+4. Settle every compliant transaction via internal ledger simulation, producing settlement timestamps and audit records retained for 5 years under GDPR's legal obligation basis.
+5. Generate a machine-readable run report and per-stage status timeline, observable by any external process without coupling to the pipeline or log parsing.
 
 ## 3. Implementation Notes
 
-- **Monetary handling.** Amounts are carried in a precise decimal type from parsing through comparison, settlement, and aggregation. `amount` arrives as a string and is parsed directly into that type, never routed through a binary float at any point, because the resulting rounding error would be both silent and cumulative. `[NEEDS CLARIFICATION: stack/language for the pipeline — none was specified, so the concrete decimal type cannot be named]`
-- **Negative amounts.** A negative `amount` marks a refund and is legitimate input. Validation accepts it, and fraud scoring compares the **absolute** amount against the high-value threshold so a refund is judged by size rather than direction.
-- **Currency codes.** ISO 4217. Input may carry codes that are not valid ISO 4217; Validation rejects those with a specific reason rather than treating them as a fault in the source.
-- **Audit trail.** One entry per record per stage, holding an ISO 8601 UTC timestamp, the stage name, the transaction ID, and the outcome.
-- **PII.** Account numbers, names, and free-text descriptions are sensitive; none is ever logged in plaintext, and audit entries identify a record by `transaction_id` alone.
-- **Time.** Every time comparison is made in UTC — no conversion to local time, no per-country offset table, no DST handling. A transaction's own `timestamp` says when it occurred while an inter-stage message's `timestamp` says when that hop was written, and all timing rules use the former.
-- **Identity.** Records are matched between stages on `transaction_id` alone, never on array index, list position, or the order in which a directory happens to be read.
-- **Compliance regime.** GDPR — UK GDPR where the context is UK-specific — with the Data Protection Act 2018, governing PII handling and the audit trail and forming the Compliance Check stage's baseline rule set. It applies uniformly to every record whatever its country of origin. That uniformity is a deliberate privacy-by-design choice rather than a jurisdictional claim, since GDPR's territorial scope normally follows where data subjects are. AML and financial-crime regimes such as UK MLR 2017 and FCA customer due diligence fall outside scope.
-- **Fraud scoring.** A transparent, weighted rule-based score rather than an opaque or learned model, because GDPR Article 22 requires that profiling behind an automated decision have explainable logic. Applicable weights sum and cap at 1.00:
-
-  | Factor | Weight | Condition |
-  |---|---|---|
-  | High-value amount | 0.50 | absolute `amount` at or above $10,000, or its equivalent in the transaction's currency |
-  | Cross-border mismatch | 0.30 | source and destination account countries differ, or `metadata.country` differs from the baseline country |
-  | Unusual-hour timing | 0.20 | the transaction's own `timestamp` falls outside 06:00–22:00 UTC |
-
-  A score of 0.50 or above flags the record for review — the high-value factor reaches that alone, as does any pair of the lesser factors. The **baseline country is GB**, matching the jurisdiction the compliance regime implies, so cross-border is judged against the same country the compliance rules reason about. Weighing a non-baseline currency against the high-value threshold calls for current exchange rates covering whichever currencies actually appear in the input.
-- **Flagging is not rejection.** Fraud Detection annotates and passes the record on; it never rejects or blocks. Adverse action rests with Compliance Check, which holds a flagged record for human review instead of deciding against it automatically — this is what satisfies GDPR Article 22's restriction on solely-automated decisions producing legal or similarly significant effects.
-- **Settlement.** An internal simulated ledger: the record is marked settled with a settlement timestamp and a generated reference. No external API or network call takes place and no data reaches a third-party processor, keeping the design data-minimizing by default. Settlement and audit records containing account or PII data are held for **5 years**, a standard financial record-keeping period, on GDPR's legal-obligation basis — which overrides erasure requests throughout that window — and are purged or anonymized afterwards.
-- **Performance and scalability.** 99.99% uptime and sustained throughput of up to 100,000 transactions per second. These are targets the architecture is held to — no artificial single-threaded bottleneck, no per-transaction blocking I/O that would cap throughput far beneath them — rather than a benchmark any given run is expected to demonstrate under load.
-- **Volume.** The number of records is arbitrary and varies from run to run; no count may be assumed or hardcoded anywhere.
+- **Monetary values** must be represented as decimal strings, never binary floating-point; [NEEDS CLARIFICATION: stack/language for the pipeline — none was specified, so the concrete decimal type cannot be named].
+- Currency codes follow ISO 4217; invalid codes (e.g., `XYZ`) are validation failures, not malformed input.
+- Negative amounts are valid transaction data (refunds).
+- All time logic operates in UTC; the transaction's own `timestamp` (when it occurred) is distinct from inter-stage message timestamps (when a hop was written). Timing checks always use the transaction's own `timestamp`. Unusual-hour timing (outside 06:00–22:00 UTC) is a fraud-score factor; no local-timezone conversion, DST handling, or per-country offset table.
+- Transactions are associated by `transaction_id`, never by position or read order.
+- Audit trail logs every transaction's passage through the pipeline: entry timestamp, stage name, transaction ID, outcome (pass/flag/hold/settle), and exit timestamp. PII (account numbers, customer names, identifying metadata) is never logged in plaintext.
+- The compliance regime is **GDPR and the Data Protection Act 2018** (or UK GDPR in UK-specific contexts), applied uniformly to all records as a deliberate privacy-by-design choice. AML and financial-crime regimes are out of scope unless explicitly stated otherwise.
+- Fraud detection uses a **transparent, weighted rule-based score** (0.00–1.00) with the following factors:
+  - High-value amount (weight 0.50): absolute `amount` ≥ $10,000 (or currency equivalent)
+  - Cross-border mismatch (weight 0.30): source/destination country mismatch or `metadata.country` differs from GB (the baseline jurisdiction)
+  - Unusual-hour timing (weight 0.20): `timestamp` falls outside 06:00–22:00 UTC
+  - Applicable weights sum and cap at 1.00; flag at score ≥ 0.50.
+- Fraud Detection flags transactions for review; it does not auto-reject or auto-block. Compliance Check applies holds instead of rejections, per GDPR Article 22's restriction on solely-automated decisions with legal or significant effects.
+- Settlement is via **internal simulated ledger**, assigning a settlement timestamp and reference to each transaction without external API or network calls. Settlement and audit records are retained for **5 years** (standard UK financial record-keeping) under GDPR's legal obligation lawful basis; records are purged or anonymized thereafter.
+- Performance targets: **99.99% uptime** and sustained throughput capability up to **100,000 transactions per second**. Architecture must avoid single-threaded bottlenecks and per-transaction blocking I/O.
 
 ## 4. Context
 
-**Beginning context.** An input transaction source stands ready for ingestion: an arbitrary, variable-length set of records in the canonical schema — `transaction_id`, `timestamp`, `source_account`, `destination_account`, `amount` as a decimal string, `currency`, `transaction_type`, `description`, `metadata.channel`, `metadata.country`. The source is overridable, with `sample-transactions.json` serving as the default fixture when none is named. No `shared/` tree need exist beforehand; the orchestrator creates it.
+**Beginning Context**
 
-**Ending context.** The run leaves this tree, which constitutes its complete record:
+The pipeline receives transaction records from an input transaction source. At the start of a run, the `shared/` directory is empty or contains only leftover files from prior runs; the pipeline's first stage clears and re-initializes it. Each transaction is ingested as a separate file into `shared/input/`.
 
-```
-shared/
-├── input/       ← the ingested records, one file per transaction; read-only once written
-├── processing/  ← the currently-running stage's work in progress; holds no files at rest
-├── output/      ← the last completed stage's messages awaiting the next stage; holds no files once Reporting finishes
-├── results/     ← exactly one final record per transaction, joining its original fields to the results gathered at every stage it reached
-├── status.json  ← per-stage start and completion timestamps with processed/passed/failed counts, written live as the run progresses
-└── report.json  ← the aggregate run summary, written once at the end
-```
+**Ending Context**
 
-`status.json` and `report.json` are first-class obligations of the pipeline rather than conveniences: together with `results/`, they are how it publishes run state and outcomes as plain, self-describing JSON observable by any external process without coupling, log parsing, or file counting. Every directory outlives the run — `processing/` and `output/` are emptied, never removed.
+After a successful run, the `shared/` directory tree contains:
+
+- `shared/input/` — empty of files; the directory itself remains. All ingested records have been read by stages that required original fields.
+- `shared/processing/` — empty; the currently-running stage clears this between transactions.
+- `shared/output/` — empty; the last-completed stage's output is consumed by the next stage.
+- `shared/results/` — exactly one file per transaction, containing the final record with validation status, fraud score, compliance decision, settlement reference (if settled), and audit trail.
+- `shared/status.json` — per-stage start/completion timestamps, processed count, passed count, and failed count. Written live as each stage progresses, providing observability into run state without coupling to the pipeline, parsing logs, or counting files.
+- `shared/report.json` — aggregate run summary: total transactions processed, validation pass/fail counts, fraud flags, compliance holds, settled count, and overall run status. Written once at the end.
 
 ## 5. Low-Level Tasks
 
-```
 Task: Validation Stage
-Prompt: "Implement the Validation stage. Read each transaction record from shared/input, moving it into shared/processing while you work on it, and check it against the canonical schema: every required field present; amount a well-formed decimal string, positive or negative; currency a valid ISO 4217 code; transaction_type, metadata.channel and metadata.country present and well-formed. Annotate the records that pass with their validation result and write them to shared/output for the next stage. Write the records that fail directly to shared/results with a reason field naming the precise failure, such as 'invalid currency code: XYZ', and carry them no further. Emit an audit-trail entry for every record — ISO 8601 UTC timestamp, stage name, transaction ID, outcome — with no PII in plaintext."
-File to CREATE: pipeline/validation.[ext]
-Function to CREATE: validate_transaction(record: Transaction) -> ValidationResult
-Details: Confirms the presence and type of every canonical field; confirms amount parses as a decimal rather than a float and treats a negative value as a legitimate refund; confirms currency is a real ISO 4217 code; rejects anything malformed or incomplete with a reason string specific enough to act on; leaves passing records untouched beyond the validation result it attaches.
+Prompt: "Validate each transaction record for required fields, schema correctness, and valid ISO 4217 currency code. Return a structured validation result containing pass/fail status and, if invalid, the specific error reason. Write invalid records to output with reason; they are blocked from proceeding to Fraud Detection."
+File to CREATE: `pipeline/validation.[ext]`
+Function to CREATE: `validate_transaction(record: Transaction) -> ValidationResult`
+Details: Checks presence and type of `transaction_id`, `timestamp` (ISO 8601), `source_account`, `destination_account`, `amount` (non-empty decimal string), `currency` (ISO 4217), `transaction_type`, `description`, and optional `metadata`. Rejects records with missing required fields, non-ISO timestamp format, non-decimal `amount`, or unrecognized currency code. Logs each check to the audit trail with timestamp, stage name, transaction ID, and outcome (pass or fail reason).
 
 Task: Fraud Detection Stage
-Prompt: "Implement the Fraud Detection stage. Read validated records from shared/output, moving each into shared/processing while you work on it, and compute a weighted risk score between 0.00 and 1.00: add 0.50 when the absolute amount reaches $10,000 or its equivalent in the transaction's currency at current rates, 0.30 when the transaction is cross-border because source and destination account countries differ or metadata.country differs from the GB baseline, and 0.20 when the transaction's own timestamp falls outside 06:00-22:00 UTC. Sum the applicable weights, cap at 1.00, and flag for review at 0.50 or above. Never reject on the score: attach the score, the contributing factors, and the flag, then pass every record to Compliance Check via shared/output whether flagged or not. Emit an audit-trail entry per record."
-File to CREATE: pipeline/fraud_detection.[ext]
-Function to CREATE: score_transaction(record: Transaction, rates: ExchangeRates) -> FraudResult
-Details: Produces a score explainable factor by factor, as GDPR Article 22 requires of profiling behind an automated decision; scores the absolute amount so refunds are judged by size; uses exchange rates supplied by the orchestrator rather than fetching any itself; reads any original field it needs from shared/input rather than assuming the inter-stage message carries it; takes timing from the transaction's own timestamp and never from the message envelope's; flags only, never rejects.
+Prompt: "Score each transaction using the fraud-detection scoring model: high-value amount (0.50), cross-border mismatch (0.30), and unusual-hour timing (0.20). Use a baseline country of GB unless the data implies otherwise. Flag at score ≥ 0.50. Return a fraud result with score, individual factor contributions, and flag status. Fraud Detection does not auto-reject or auto-block; it only flags for review per GDPR Article 22."
+File to CREATE: `pipeline/fraud_detection.[ext]`
+Function to CREATE: `score_transaction(record: Transaction, rates: ExchangeRates) -> FraudResult`
+Details: Applies the transparent, weighted rule-based score (0.00–1.00) to each record. High-value threshold is $10,000 USD or equivalent in other currencies. Cross-border mismatch detects source/destination country mismatch or divergence of `metadata.country` from the baseline (GB). Unusual-hour timing checks the transaction's own `timestamp` in UTC; any time outside 06:00–22:00 UTC (no local-timezone offset) is flagged. Outputs the final score, individual factor values, and a flag boolean (true if score ≥ 0.50). Logs to audit trail: timestamp, stage name, transaction ID, fraud score, and flag status.
 
 Task: Compliance Check Stage
-Prompt: "Implement the Compliance Check stage. Read fraud-scored records from shared/output, moving each into shared/processing while you work on it, and apply the GDPR and Data Protection Act 2018 baseline to the record's PII and account data before it becomes eligible for settlement. Put records that fraud scoring flagged on hold for human review rather than rejecting them automatically, as GDPR Article 22 requires. Annotate the records that clear with their compliance result and write them to shared/output to continue to Settlement. Write the records that are held or rejected directly to shared/results with a reason field, joining the original transaction to the results gathered so far, and carry them no further. Emit an audit-trail entry per record."
-File to CREATE: pipeline/compliance.[ext]
-Function to CREATE: check_compliance(record: Transaction, fraud: FraudResult) -> ComplianceResult
-Details: Applies the data-protection baseline uniformly to every record whatever its origin, as a privacy-by-design choice rather than a jurisdictional claim; confirms no PII is carried or logged in plaintext; converts a fraud flag into a hold with a stated reason instead of an automated adverse decision; returns cleared, held, or rejected, with a specific reason for anything but cleared; guarantees an uncleared record can never reach Settlement. AML and sanctions screening lie outside scope.
+Prompt: "Apply data protection compliance checks (GDPR and Data Protection Act 2018). For each transaction, verify PII handling and cross-check fraud flags. Transactions flagged by Fraud Detection are placed on hold pending review, not auto-rejected, per GDPR Article 22. Return a compliance result with hold status, review reason, and compliance decision. Records on hold are written to output; settled records proceed to Settlement Processing."
+File to CREATE: `pipeline/compliance.[ext]`
+Function to CREATE: `check_compliance(record: Transaction, fraud: FraudResult) -> ComplianceResult`
+Details: Applies GDPR and Data Protection Act 2018 checks uniformly to all records, treating privacy as a design principle across the entire dataset. Verifies that account identifiers and customer names are not logged in plaintext in upstream audit trails; flagged transactions are placed on hold for manual review rather than auto-rejected, satisfying GDPR Article 22's restriction on solely-automated decisions with legal or significant effects. Compliant records are approved for settlement; fraud-flagged records are held with a review reason logged. Outputs compliance decision (approved/hold), hold reason if applicable, and compliance audit trail including timestamp, stage name, transaction ID, and decision.
 
 Task: Settlement Processing Stage
-Prompt: "Implement the Settlement Processing stage. Read compliance-cleared records from shared/output, moving each into shared/processing while you work on it, and settle it against an internal simulated ledger with no external API call, no network call, and no data leaving to any third party. Produce a settlement record carrying an ISO 8601 UTC settlement timestamp, a generated unique settlement reference, and a status. Perform every monetary calculation with the precise decimal type. Annotate the record with its settlement result and write it back to shared/output for Reporting. Emit an audit-trail entry per record."
-File to CREATE: pipeline/settlement.[ext]
-Function to CREATE: settle_transaction(record: Transaction, compliance: ComplianceResult) -> SettlementResult
-Details: Accepts only cleared records and refuses to settle anything whose compliance result is absent or not cleared; generates a settlement reference unique to each transaction; settles negative amounts as the legitimate refunds they are; notes that the settlement record falls under the 5-year retention period on GDPR's legal-obligation basis.
+Prompt: "Settle each approved transaction via internal ledger simulation. Assign a settlement timestamp and a generated settlement reference (e.g., UUID or sequential ID) to each record. Retain settlement and audit records for 5 years under GDPR's legal obligation lawful basis; implement or document the purge/anonymization schedule for records after the retention period. Return a settlement result with reference, timestamp, and settlement status. Do not call external APIs or settlement networks unless explicitly specified."
+File to CREATE: `pipeline/settlement.[ext]`
+Function to CREATE: `settle_transaction(record: Transaction, compliance: ComplianceResult) -> SettlementResult`
+Details: Performs internal ledger settlement for each approved transaction. Generates a unique settlement reference (non-guessable identifier) and records the settlement timestamp (distinct from the transaction's original `timestamp`). No external API calls or third-party network integration unless specified. Records containing account numbers, transaction amounts, and settlement references are retained in the audit trail for 5 years (standard UK financial record-keeping) under GDPR's legal obligation basis, overriding erasure requests during the retention window. After 5 years, records are purged or anonymized per applicable data protection policy. Outputs settlement reference, settlement timestamp, and settlement status (settled/failed). Logs to audit trail: timestamp, stage name, transaction ID, settlement reference, and settlement outcome.
 
 Task: Reporting Stage
-Prompt: "Implement the Reporting stage. Read the finished records from shared/output and produce two outputs. Write the aggregate run summary to shared/report.json: total records ingested, counts of validated, rejected, flagged, held and settled, and aggregate risk indicators such as the distribution of scores and the total settled value per currency. Then write each transaction's final record to shared/results, joining the fresh original read from shared/input to the results gathered at every stage it reached, matched on transaction_id. When the stage finishes, shared/output and shared/processing must hold no files while both directories remain in place. Emit an audit-trail entry per record."
-File to CREATE: pipeline/reporting.[ext]
-Function to CREATE: build_report(records: list[ProcessedTransaction]) -> RunReport
-Details: Counts transactions only, never counting the summary itself among them; joins on transaction_id rather than on position or read order; computes every monetary aggregate with the precise decimal type; keeps the summary at shared/report.json and the per-transaction finals in shared/results without mixing the two; leaves the shared tree standing, emptied rather than dismantled.
-```
+Prompt: "Aggregate all settled and processed transactions into a final run report. Count transactions by outcome (validated, fraud-flagged, compliance-held, settled, failed). Generate run-level statistics and timestamps for pipeline start and end. Produce two machine-readable outputs: status.json (per-stage progress with timestamps and counts) and report.json (aggregate run summary). Both must be observable by external processes without coupling to the pipeline."
+File to CREATE: `pipeline/reporting.[ext]`
+Function to CREATE: `build_report(records: list[ProcessedTransaction]) -> RunReport`
+Details: Collects outcomes from all upstream stages and produces two outputs. `status.json` contains per-stage telemetry: stage name, start timestamp, completion timestamp, processed count, passed count, and failed count for each stage, updated live as stages complete. `report.json` contains aggregate statistics: total transactions, validation pass/fail counts, fraud flags, compliance holds, settled count, overall success/failure, pipeline start time, and pipeline end time. Both outputs are plain, self-describing JSON that any external process can consume for observability and audit purposes without parsing logs or coupling to the pipeline's internal structure. Logs all transaction outcomes and aggregate counts to the audit trail.

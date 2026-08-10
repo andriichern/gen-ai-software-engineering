@@ -14,7 +14,7 @@
   "validation_result": {
     "status": "failed",
     "reason": "invalid currency code: XYZ",
-    "checked_at": "2026-08-10T10:15:33.589905+00:00"
+    "checked_at": "2026-08-10T19:59:03.556241+00:00"
   },
   "reason": "invalid currency code: XYZ",
   "final_status": "rejected"

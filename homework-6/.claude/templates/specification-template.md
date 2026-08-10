@@ -72,7 +72,7 @@ Stages communicate only through files. The spec's Context section must describe 
 
 ```
 shared/
-├── input/       ← the ingested records, one file per transaction; read-only once written
+├── input/       ← the ingested records, one file per transaction; read-only for the run's duration, emptied of files once the run finishes successfully (every stage needing an original field has already read it by then; the directory itself is never removed)
 ├── processing/  ← the currently-running stage's work in progress
 ├── output/      ← the last completed stage's messages, awaiting the next stage
 ├── results/     ← final destination only: exactly one final record per transaction

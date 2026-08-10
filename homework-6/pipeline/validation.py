@@ -15,10 +15,7 @@ import pycountry
 
 from lib.common import (
     audit,
-    clear_processing_file,
-    copy_into_processing,
     lean_data,
-    list_json_files,
     make_envelope,
     parse_decimal,
     parse_iso8601,
@@ -27,6 +24,7 @@ from lib.common import (
     write_envelope,
     write_final_result,
 )
+from lib.stage_runner import run_stage_loop
 
 STAGE_NAME = "validation"
 REQUIRED_TOP_LEVEL_FIELDS = (
@@ -115,40 +113,32 @@ def validate_transaction(record: Dict[str, Any]) -> Dict[str, Any]:
 
     return {"status": "passed", "reason": None, "checked_at": utc_now_iso()}
 
-
 def run_stage(input_dir: Path, processing_dir: Path, output_dir: Path, results_dir: Path) -> Dict[str, int]:
-    processed = passed = failed = 0
-    for src in list_json_files(input_dir):
-        transaction_id = src.stem
-        working = copy_into_processing(src, processing_dir)
+    def process_transaction(transaction_id: str, working: Path) -> bool:
         record = read_json(working)
-
         result = validate_transaction(record)
-        processed += 1
 
         if result["status"] == "passed":
-            passed += 1
             data = lean_data(transaction_id, record["amount"], record["currency"], {"validation_result": result})
             envelope = make_envelope(STAGE_NAME, "fraud_detection", data)
             write_envelope(output_dir, transaction_id, envelope)
             audit(STAGE_NAME, transaction_id, "passed")
-        else:
-            failed += 1
-            write_final_result(
-                results_dir,
-                input_dir,
-                transaction_id,
-                {
-                    "validation_result": result,
-                    "reason": result["reason"],
-                    "final_status": "rejected",
-                },
-            )
-            audit(STAGE_NAME, transaction_id, f"failed: {result['reason']}")
+            return True
 
-        clear_processing_file(working)
+        write_final_result(
+            results_dir,
+            input_dir,
+            transaction_id,
+            {
+                "validation_result": result,
+                "reason": result["reason"],
+                "final_status": "rejected",
+            },
+        )
+        audit(STAGE_NAME, transaction_id, f"failed: {result['reason']}")
+        return False
 
-    return {"processed": processed, "passed": passed, "failed": failed}
+    return run_stage_loop(input_dir, processing_dir, "copy", process_transaction)
 
 
 def _default_shared_dir() -> Path:

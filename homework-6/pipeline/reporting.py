@@ -20,12 +20,12 @@ from lib.common import (
     audit,
     clear_processing_file,
     list_json_files,
-    move_into_processing,
     read_json,
     read_original_record,
     utc_now_iso,
     write_json,
 )
+from lib.stage_runner import run_stage_loop
 
 STAGE_NAME = "reporting"
 
@@ -92,19 +92,10 @@ def build_report(records: List[Dict[str, Any]]) -> Dict[str, Any]:
         "total_settled_value_by_currency": {c: str(v) for c, v in settled_value_by_currency.items()},
     }
 
+def run_stage(input_dir: Path, processing_dir: Path, output_dir: Path, results_dir: Path) -> Dict[str, int]:
+    report_path = results_dir.parent / "report.json"
 
-def run_stage(
-    input_dir: Path, processing_dir: Path, output_dir: Path, results_dir: Path, report_path: Path
-) -> Dict[str, int]:
-    # Records already terminated earlier in the run (validation-rejected,
-    # compliance-held/rejected) already sit in shared/results.
-    terminal_records = [read_json(f) for f in list_json_files(results_dir)]
-
-    finished_files = list_json_files(output_dir)
-    settled_finals: List[tuple] = []
-    for src in finished_files:
-        transaction_id = src.stem
-        working = move_into_processing(src, processing_dir)
+    def process_transaction(transaction_id: str, working: Path) -> bool:
         envelope = read_json(working)
         data = envelope["data"]
 
@@ -120,21 +111,31 @@ def run_stage(
             }
         )
         settled_finals.append((transaction_id, final_record, working))
+        return True
+
+    # Records already terminated earlier in the run (validation-rejected,
+    # compliance-held/rejected) already sit in shared/results.
+    terminal_records = [read_json(f) for f in list_json_files(results_dir)]
+
+    # Deferred: the report needs every settled_finals entry gathered before any
+    # of them can be written, so process() only builds and collects each final
+    # record here; the actual results/ writes (and processing/ clearing) happen
+    # in the second pass below, once build_report has run over the full set.
+    settled_finals: List[tuple] = []
+
+    tally = run_stage_loop(output_dir, processing_dir, "move", process_transaction, clear_processing=False)
 
     all_records = terminal_records + [f[1] for f in settled_finals]
     report = build_report(all_records)
     write_json(report_path, report)
 
-    processed = passed = 0
     for transaction_id, final_record, working in settled_finals:
         results_dir.mkdir(parents=True, exist_ok=True)
         write_json(results_dir / f"{transaction_id}.json", final_record)
         audit(STAGE_NAME, transaction_id, "settled")
         clear_processing_file(working)
-        processed += 1
-        passed += 1
 
-    return {"processed": processed, "passed": passed, "failed": 0}
+    return tally
 
 
 def _default_shared_dir() -> Path:
@@ -147,10 +148,9 @@ def main() -> None:
     parser.add_argument("--output-dir", type=Path, default=_default_shared_dir() / "output")
     parser.add_argument("--processing-dir", type=Path, default=_default_shared_dir() / "processing")
     parser.add_argument("--results-dir", type=Path, default=_default_shared_dir() / "results")
-    parser.add_argument("--report-path", type=Path, default=_default_shared_dir() / "report.json")
     args = parser.parse_args()
 
-    tally = run_stage(args.input_dir, args.processing_dir, args.output_dir, args.results_dir, args.report_path)
+    tally = run_stage(args.input_dir, args.processing_dir, args.output_dir, args.results_dir)
     print(f"[{STAGE_NAME}] processed={tally['processed']} passed={tally['passed']} failed={tally['failed']}")
 
 

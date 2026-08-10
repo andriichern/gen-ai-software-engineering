@@ -14,11 +14,8 @@ from typing import Any, Dict
 
 from lib.common import (
     audit,
-    clear_processing_file,
     lean_data,
-    list_json_files,
     make_envelope,
-    move_into_processing,
     new_id,
     parse_decimal,
     read_json,
@@ -26,6 +23,7 @@ from lib.common import (
     write_envelope,
     write_final_result,
 )
+from lib.stage_runner import run_stage_loop
 
 STAGE_NAME = "settlement"
 RETENTION_PERIOD_YEARS = 5
@@ -54,21 +52,15 @@ def settle_transaction(record: Dict[str, Any], compliance: Dict[str, Any]) -> Di
         "retention_period_years": RETENTION_PERIOD_YEARS,
     }
 
-
 def run_stage(input_dir: Path, processing_dir: Path, output_dir: Path, results_dir: Path) -> Dict[str, int]:
-    processed = passed = failed = 0
-    for src in list_json_files(output_dir):
-        transaction_id = src.stem
-        working = move_into_processing(src, processing_dir)
+    def process_transaction(transaction_id: str, working: Path) -> bool:
         envelope = read_json(working)
         data = envelope["data"]
 
         compliance_result = data.get("compliance_result", {})
-        processed += 1
         try:
             result = settle_transaction(data, compliance_result)
         except ValueError as exc:
-            failed += 1
             write_final_result(
                 results_dir,
                 input_dir,
@@ -82,23 +74,22 @@ def run_stage(input_dir: Path, processing_dir: Path, output_dir: Path, results_d
                 },
             )
             audit(STAGE_NAME, transaction_id, f"refused: {exc}")
-            clear_processing_file(working)
-            continue
+            return False
 
-        passed += 1
         new_data = lean_data(transaction_id, data["amount"], data["currency"], {
             "validation_result": data.get("validation_result"),
             "fraud_result": data.get("fraud_result"),
             "compliance_result": compliance_result,
             "settlement_result": result,
+            "country": data.get("country"),
+            "transaction_timestamp": data.get("transaction_timestamp"),
         })
         new_envelope = make_envelope(STAGE_NAME, "reporting", new_data)
         write_envelope(output_dir, transaction_id, new_envelope)
         audit(STAGE_NAME, transaction_id, "settled")
+        return True
 
-        clear_processing_file(working)
-
-    return {"processed": processed, "passed": passed, "failed": failed}
+    return run_stage_loop(output_dir, processing_dir, "move", process_transaction)
 
 
 def _default_shared_dir() -> Path:

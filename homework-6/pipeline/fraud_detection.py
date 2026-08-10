@@ -13,11 +13,9 @@ from typing import Any, Dict
 
 from lib.common import (
     audit,
-    clear_processing_file,
     lean_data,
     list_json_files,
     make_envelope,
-    move_into_processing,
     parse_decimal,
     parse_iso8601,
     read_json,
@@ -25,6 +23,7 @@ from lib.common import (
     utc_now_iso,
     write_envelope,
 )
+from lib.stage_runner import run_stage_loop
 
 STAGE_NAME = "fraud_detection"
 
@@ -93,35 +92,27 @@ def score_transaction(record: Dict[str, Any], rates: ExchangeRates) -> Dict[str,
         "scored_at": utc_now_iso(),
     }
 
-
 def run_stage(input_dir: Path, processing_dir: Path, output_dir: Path, rates: ExchangeRates) -> Dict[str, int]:
-    processed = passed = failed = 0
-    for src in list_json_files(output_dir):
-        transaction_id = src.stem
-        working = move_into_processing(src, processing_dir)
+    def process_transaction(transaction_id: str, working: Path) -> bool:
         envelope = read_json(working)
         data = envelope["data"]
 
         original = read_original_record(input_dir, transaction_id)
         result = score_transaction(original, rates)
-        processed += 1
-        if result["flagged"]:
-            failed += 1
-        else:
-            passed += 1
 
-        data["fraud_result"] = result
         new_data = lean_data(transaction_id, data["amount"], data["currency"], {
             "validation_result": data.get("validation_result"),
             "fraud_result": result,
+            "country": original.get("metadata", {}).get("country"),
+            "transaction_timestamp": original.get("timestamp"),
         })
         new_envelope = make_envelope(STAGE_NAME, "compliance", new_data)
         write_envelope(output_dir, transaction_id, new_envelope)
         audit(STAGE_NAME, transaction_id, "flagged" if result["flagged"] else "not_flagged")
 
-        clear_processing_file(working)
+        return not result["flagged"]
 
-    return {"processed": processed, "passed": passed, "failed": failed}
+    return run_stage_loop(output_dir, processing_dir, "move", process_transaction)
 
 
 def _default_shared_dir() -> Path:
