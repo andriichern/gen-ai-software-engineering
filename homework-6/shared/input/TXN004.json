@@ -1,0 +1,14 @@
+{
+  "transaction_id": "TXN004",
+  "timestamp": "2026-03-16T02:47:00Z",
+  "source_account": "ACC-1004",
+  "destination_account": "ACC-5500",
+  "amount": "500.00",
+  "currency": "EUR",
+  "transaction_type": "transfer",
+  "description": "Invoice #4471",
+  "metadata": {
+    "channel": "api",
+    "country": "DE"
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "transaction_id": "TXN007",
+  "timestamp": "2026-03-16T10:10:00Z",
+  "source_account": "ACC-1007",
+  "destination_account": "ACC-8800",
+  "amount": "-100.00",
+  "currency": "GBP",
+  "transaction_type": "refund",
+  "description": "Refund for order #8821",
+  "metadata": {
+    "channel": "online",
+    "country": "GB"
+  },
+  "validation_result": {
+    "status": "passed",
+    "reason": null,
+    "checked_at": "2026-08-10T10:15:33.590510+00:00"
+  },
+  "fraud_result": {
+    "score": "0.00",
+    "factors": {
+      "high_value_amount": false,
+      "cross_border_mismatch": false,
+      "unusual_hour_timing": false
+    },
+    "flagged": false,
+    "scored_at": "2026-08-10T10:15:33.594597+00:00"
+  },
+  "compliance_result": {
+    "status": "cleared",
+    "reason": null,
+    "checked_at": "2026-08-10T10:15:33.597941+00:00"
+  },
+  "settlement_result": {
+    "status": "settled",
+    "settlement_reference": "2ba63164-6cf5-4730-8a8b-b965649791c3",
+    "settlement_timestamp": "2026-08-10T10:15:33.600077+00:00",
+    "settled_amount": "-100.00",
+    "currency": "GBP",
+    "retention_period_years": 5
+  },
+  "final_status": "settled"
+}

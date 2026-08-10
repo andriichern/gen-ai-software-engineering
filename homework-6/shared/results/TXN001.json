@@ -1,0 +1,43 @@
+{
+  "transaction_id": "TXN001",
+  "timestamp": "2026-03-16T09:00:00Z",
+  "source_account": "ACC-1001",
+  "destination_account": "ACC-2001",
+  "amount": "1500.00",
+  "currency": "USD",
+  "transaction_type": "transfer",
+  "description": "Monthly rent payment",
+  "metadata": {
+    "channel": "online",
+    "country": "US"
+  },
+  "validation_result": {
+    "status": "passed",
+    "reason": null,
+    "checked_at": "2026-08-10T10:15:33.586704+00:00"
+  },
+  "fraud_result": {
+    "score": "0.30",
+    "factors": {
+      "high_value_amount": false,
+      "cross_border_mismatch": true,
+      "unusual_hour_timing": false
+    },
+    "flagged": false,
+    "scored_at": "2026-08-10T10:15:33.592206+00:00"
+  },
+  "compliance_result": {
+    "status": "cleared",
+    "reason": null,
+    "checked_at": "2026-08-10T10:15:33.595760+00:00"
+  },
+  "settlement_result": {
+    "status": "settled",
+    "settlement_reference": "c7adab8c-99e4-4a39-b475-714f98779fdb",
+    "settlement_timestamp": "2026-08-10T10:15:33.599058+00:00",
+    "settled_amount": "1500.00",
+    "currency": "USD",
+    "retention_period_years": 5
+  },
+  "final_status": "settled"
+}

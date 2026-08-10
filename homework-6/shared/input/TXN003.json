@@ -1,0 +1,14 @@
+{
+  "transaction_id": "TXN003",
+  "timestamp": "2026-03-16T09:30:00Z",
+  "source_account": "ACC-1003",
+  "destination_account": "ACC-9999",
+  "amount": "9999.99",
+  "currency": "USD",
+  "transaction_type": "transfer",
+  "description": "Consulting payment",
+  "metadata": {
+    "channel": "online",
+    "country": "US"
+  }
+}

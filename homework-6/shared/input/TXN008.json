@@ -1,0 +1,14 @@
+{
+  "transaction_id": "TXN008",
+  "timestamp": "2026-03-16T10:15:00Z",
+  "source_account": "ACC-1008",
+  "destination_account": "ACC-9900",
+  "amount": "3200.00",
+  "currency": "USD",
+  "transaction_type": "transfer",
+  "description": "Salary advance",
+  "metadata": {
+    "channel": "mobile",
+    "country": "US"
+  }
+}

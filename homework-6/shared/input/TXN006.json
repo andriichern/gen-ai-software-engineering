@@ -1,0 +1,14 @@
+{
+  "transaction_id": "TXN006",
+  "timestamp": "2026-03-16T10:05:00Z",
+  "source_account": "ACC-1006",
+  "destination_account": "ACC-7700",
+  "amount": "200.00",
+  "currency": "XYZ",
+  "transaction_type": "transfer",
+  "description": "Test payment",
+  "metadata": {
+    "channel": "online",
+    "country": "US"
+  }
+}
