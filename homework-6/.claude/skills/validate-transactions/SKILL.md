@@ -39,6 +39,7 @@ Determine which dataset to validate:
 Locate the modules that implement the pipeline's individual processing stages — typically siblings in one directory, each handling a single concern. Read them and identify the one that performs **validation**: it checks records for required fields, well-formed types, a sensible amount, and a recognized currency, and yields a pass/fail outcome carrying a human-readable reason.
 
 Explicitly **reject**:
+
 - the module that sequences all the stages rather than implementing one
 - sibling stages that score risk, screen against policy, settle, or aggregate and report
 - shared helpers and utilities that drive nothing
@@ -82,7 +83,7 @@ Present, in this order:
 **Results table** — one row per transaction:
 
 | Transaction | Status | Reason |
-|---|---|---|
+| ----------- | ------ | ------ |
 
 Leave the reason cell `—` for records that passed.
 

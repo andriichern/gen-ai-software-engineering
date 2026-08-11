@@ -36,9 +36,10 @@ If `$ARGUMENTS` names an alternate input dataset, verify that path exists too, a
 Work through these in order and stop at the first that yields a single confident answer.
 
 **(a) A root-level program module that drives the whole pipeline.**
-List the executable program modules at the root of this folder and read them. You are looking for the one that *orchestrates*: it invokes several processing stages in a fixed sequence, sets up or consumes the shared working directories, and reads the input dataset. Keep exactly that one.
+List the executable program modules at the root of this folder and read them. You are looking for the one that _orchestrates_: it invokes several processing stages in a fixed sequence, sets up or consumes the shared working directories, and reads the input dataset. Keep exactly that one.
 
 Explicitly **reject** modules that:
+
 - implement a single processing stage rather than sequencing several (these usually live in a subdirectory alongside their siblings, and each handles one concern)
 - configure, discover, or run tests
 - build, bundle, serve, or preview a user interface
@@ -57,7 +58,7 @@ Once the entrypoint file is identified, determine how to invoke it from that fil
 Many projects are run directly from source with no declared dependency manifest at all. Its absence is not an error, not a reason to install anything, and not a reason to stop.
 
 **(f) Genuine ambiguity — ask.**
-If after all of the above two or more distinct candidates each plausibly run the entire pipeline, do not guess. Stop and ask which to use, listing what you found and why each is a candidate. This is a last resort: a user interface manifest, a test configuration, and a single-stage module are *not* competing candidates, they are exclusions already handled above.
+If after all of the above two or more distinct candidates each plausibly run the entire pipeline, do not guess. Stop and ask which to use, listing what you found and why each is a candidate. This is a last resort: a user interface manifest, a test configuration, and a single-stage module are _not_ competing candidates, they are exclusions already handled above.
 
 State the entrypoint and invocation you settled on, and the evidence for it, before running anything.
 
@@ -101,7 +102,7 @@ Present, in this order:
 **Per-transaction table** — one row per transaction:
 
 | Transaction | Final status | Stopping stage |
-|---|---|---|
+| ----------- | ------------ | -------------- |
 
 The stopping stage is the last stage that recorded a result for that transaction. For transactions that completed the whole pipeline successfully, mark it `—`.
 

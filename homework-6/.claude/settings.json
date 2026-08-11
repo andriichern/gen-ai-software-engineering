@@ -2,5 +2,20 @@
   "coverage": {
     "threshold": 80,
     "report_name_pattern": "*coverage*"
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cmd=$(jq -r '.tool_input.command // empty'); case \"$cmd\" in *'git push'*|*'gh pr create'*|*'gh pr merge'*|*'gh repo sync'*) s=scripts/check-coverage.sh; [ -f \"$s\" ] || s=\"$(git rev-parse --show-toplevel 2>/dev/null)/homework-6/scripts/check-coverage.sh\"; [ -f \"$s\" ] || exit 0; bash \"$s\" >&2 || { echo 'Coverage gate failed: push blocked until coverage meets the threshold.' >&2; exit 2; };; esac; exit 0",
+            "timeout": 120,
+            "statusMessage": "Checking coverage gate before push..."
+          }
+        ]
+      }
+    ]
   }
 }
