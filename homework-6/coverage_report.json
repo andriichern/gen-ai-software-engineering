@@ -1,0 +1,143 @@
+{
+  "language": "python",
+  "language_version": "3.9.5",
+  "framework": "pytest 8.4.2",
+  "coverage_tool": "coverage.py 7.10.7",
+  "branch_coverage": true,
+  "scope": [
+    "pipeline",
+    "lib",
+    "orchestrator"
+  ],
+  "excluded": [
+    "ui"
+  ],
+  "total_coverage_percent": 100.0,
+  "totals": {
+    "percent_covered": 100.0,
+    "percent_covered_display": "100",
+    "covered_lines": 511,
+    "num_statements": 511,
+    "missing_lines": 0
+  },
+  "coverage_threshold": 80.0,
+  "covered_lines": 511,
+  "total_statements": 511,
+  "missing_lines": 0,
+  "tests_passed": true,
+  "coverage_passed": true,
+  "passed": true,
+  "files": [
+    {
+      "file": "lib/__init__.py",
+      "coverage_percent": 100.0,
+      "lines": 0,
+      "covered": 0,
+      "missing_lines": 0,
+      "branches": 0,
+      "partial_branches": 0,
+      "uncovered_line_numbers": []
+    },
+    {
+      "file": "lib/common.py",
+      "coverage_percent": 100.0,
+      "lines": 72,
+      "covered": 72,
+      "missing_lines": 0,
+      "branches": 10,
+      "partial_branches": 0,
+      "uncovered_line_numbers": []
+    },
+    {
+      "file": "lib/exchange_rates.py",
+      "coverage_percent": 100.0,
+      "lines": 32,
+      "covered": 32,
+      "missing_lines": 0,
+      "branches": 10,
+      "partial_branches": 0,
+      "uncovered_line_numbers": []
+    },
+    {
+      "file": "lib/stage_runner.py",
+      "coverage_percent": 100.0,
+      "lines": 21,
+      "covered": 21,
+      "missing_lines": 0,
+      "branches": 8,
+      "partial_branches": 0,
+      "uncovered_line_numbers": []
+    },
+    {
+      "file": "orchestrator.py",
+      "coverage_percent": 100.0,
+      "lines": 83,
+      "covered": 83,
+      "missing_lines": 0,
+      "branches": 16,
+      "partial_branches": 0,
+      "uncovered_line_numbers": []
+    },
+    {
+      "file": "pipeline/__init__.py",
+      "coverage_percent": 100.0,
+      "lines": 0,
+      "covered": 0,
+      "missing_lines": 0,
+      "branches": 0,
+      "partial_branches": 0,
+      "uncovered_line_numbers": []
+    },
+    {
+      "file": "pipeline/compliance.py",
+      "coverage_percent": 100.0,
+      "lines": 38,
+      "covered": 38,
+      "missing_lines": 0,
+      "branches": 4,
+      "partial_branches": 0,
+      "uncovered_line_numbers": []
+    },
+    {
+      "file": "pipeline/fraud_detection.py",
+      "coverage_percent": 100.0,
+      "lines": 72,
+      "covered": 72,
+      "missing_lines": 0,
+      "branches": 12,
+      "partial_branches": 0,
+      "uncovered_line_numbers": []
+    },
+    {
+      "file": "pipeline/reporting.py",
+      "coverage_percent": 100.0,
+      "lines": 75,
+      "covered": 75,
+      "missing_lines": 0,
+      "branches": 22,
+      "partial_branches": 0,
+      "uncovered_line_numbers": []
+    },
+    {
+      "file": "pipeline/settlement.py",
+      "coverage_percent": 100.0,
+      "lines": 42,
+      "covered": 42,
+      "missing_lines": 0,
+      "branches": 2,
+      "partial_branches": 0,
+      "uncovered_line_numbers": []
+    },
+    {
+      "file": "pipeline/validation.py",
+      "coverage_percent": 100.0,
+      "lines": 76,
+      "covered": 76,
+      "missing_lines": 0,
+      "branches": 28,
+      "partial_branches": 0,
+      "uncovered_line_numbers": []
+    }
+  ],
+  "timestamp": "2026-08-11T13:58:16.002626+00:00"
+}

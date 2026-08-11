@@ -1,0 +1,72 @@
+[
+  {
+    "transaction_id": "VALID_001",
+    "timestamp": "2026-03-16T09:00:00Z",
+    "source_account": "ACC-1001",
+    "destination_account": "ACC-2001",
+    "amount": "1500.00",
+    "currency": "USD",
+    "transaction_type": "transfer",
+    "description": "Monthly rent payment",
+    "metadata": {
+      "channel": "online",
+      "country": "US"
+    }
+  },
+  {
+    "transaction_id": "VALID_002",
+    "timestamp": "2026-03-16T14:30:00Z",
+    "source_account": "ACC-1002",
+    "destination_account": "ACC-3001",
+    "amount": "25000.00",
+    "currency": "USD",
+    "transaction_type": "wire_transfer",
+    "description": "Equipment purchase",
+    "metadata": {
+      "channel": "branch",
+      "country": "GB"
+    }
+  },
+  {
+    "transaction_id": "VALID_003",
+    "timestamp": "2026-03-16T12:00:00Z",
+    "source_account": "ACC-1003",
+    "destination_account": "ACC-5500",
+    "amount": "500.00",
+    "currency": "EUR",
+    "transaction_type": "transfer",
+    "description": "Invoice payment",
+    "metadata": {
+      "channel": "api",
+      "country": "DE"
+    }
+  },
+  {
+    "transaction_id": "VALID_004",
+    "timestamp": "2026-03-16T10:15:00Z",
+    "source_account": "ACC-1004",
+    "destination_account": "ACC-6600",
+    "amount": "75000.00",
+    "currency": "USD",
+    "transaction_type": "wire_transfer",
+    "description": "Property settlement",
+    "metadata": {
+      "channel": "branch",
+      "country": "US"
+    }
+  },
+  {
+    "transaction_id": "VALID_005",
+    "timestamp": "2026-03-16T20:00:00Z",
+    "source_account": "ACC-1005",
+    "destination_account": "ACC-7700",
+    "amount": "100.00",
+    "currency": "GBP",
+    "transaction_type": "transfer",
+    "description": "International payment",
+    "metadata": {
+      "channel": "online",
+      "country": "GB"
+    }
+  }
+]

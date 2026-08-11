@@ -1,0 +1,44 @@
+[
+  {
+    "transaction_id": "EDGE_001",
+    "timestamp": "2026-03-16T03:00:00Z",
+    "source_account": "ACC-EDGE01",
+    "destination_account": "ACC-EDGE02",
+    "amount": "999999999.99",
+    "currency": "USD",
+    "transaction_type": "wire_transfer",
+    "description": "Very high value transaction",
+    "metadata": {
+      "channel": "branch",
+      "country": "US"
+    }
+  },
+  {
+    "transaction_id": "EDGE_002",
+    "timestamp": "2026-03-16T23:59:00Z",
+    "source_account": "ACC-EDGE03",
+    "destination_account": "ACC-EDGE04",
+    "amount": "-50000.00",
+    "currency": "EUR",
+    "transaction_type": "refund",
+    "description": "Large negative refund (cross-border, unusual hour)",
+    "metadata": {
+      "channel": "online",
+      "country": "FR"
+    }
+  },
+  {
+    "transaction_id": "EDGE_003",
+    "timestamp": "2026-03-16T05:30:00Z",
+    "source_account": "ACC-EDGE05",
+    "destination_account": "ACC-EDGE06",
+    "amount": "10000.01",
+    "currency": "GBP",
+    "transaction_type": "transfer",
+    "description": "Just above high-value threshold (early morning, cross-border)",
+    "metadata": {
+      "channel": "api",
+      "country": "DE"
+    }
+  }
+]
