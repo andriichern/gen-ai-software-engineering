@@ -1,0 +1,9 @@
+{
+  "hooks": {
+    "pre-push": "bash scripts/check-coverage.sh"
+  },
+  "coverage": {
+    "threshold": 80,
+    "report_name_pattern": "*coverage*"
+  }
+}
