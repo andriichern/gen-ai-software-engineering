@@ -16,13 +16,13 @@
   "totals": {
     "percent_covered": 100.0,
     "percent_covered_display": "100",
-    "covered_lines": 511,
-    "num_statements": 511,
+    "covered_lines": 528,
+    "num_statements": 528,
     "missing_lines": 0
   },
   "coverage_threshold": 80.0,
-  "covered_lines": 511,
-  "total_statements": 511,
+  "covered_lines": 528,
+  "total_statements": 528,
   "missing_lines": 0,
   "tests_passed": true,
   "coverage_passed": true,
@@ -131,13 +131,13 @@
     {
       "file": "pipeline/validation.py",
       "coverage_percent": 100.0,
-      "lines": 76,
-      "covered": 76,
+      "lines": 93,
+      "covered": 93,
       "missing_lines": 0,
-      "branches": 28,
+      "branches": 34,
       "partial_branches": 0,
       "uncovered_line_numbers": []
     }
   ],
-  "timestamp": "2026-08-11T13:58:16.002626+00:00"
+  "timestamp": "2026-08-11T20:02:04.957560+00:00"
 }

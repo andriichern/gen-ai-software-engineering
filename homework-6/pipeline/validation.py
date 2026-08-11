@@ -8,6 +8,7 @@ shared/results.
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 from typing import Any, Dict
 
@@ -27,6 +28,7 @@ from lib.common import (
 from lib.stage_runner import run_stage_loop
 
 STAGE_NAME = "validation"
+DEFAULT_DATASET = "sample-transactions.json"
 REQUIRED_TOP_LEVEL_FIELDS = (
     "transaction_id",
     "timestamp",
@@ -141,6 +143,40 @@ def run_stage(input_dir: Path, processing_dir: Path, output_dir: Path, results_d
     return run_stage_loop(input_dir, processing_dir, "copy", process_transaction)
 
 
+def dry_run(dataset: Path) -> Dict[str, Any]:
+    """Validates every record in `dataset` and reports the outcome without
+    writing anything: no shared directory is read, created, or modified, and
+    no record is altered. Reuses `validate_transaction` unchanged, so a
+    dry run and a real run always agree on whether a record is valid.
+
+    Returns {"dataset", "total", "valid", "invalid", "results"}, where each
+    entry of "results" is {"transaction_id", "status", "reason"}.
+    """
+    records = read_json(dataset)
+    if not isinstance(records, list):
+        raise ValueError(f"dataset must be a JSON array of transaction records: {dataset}")
+
+    results = []
+    for record in records:
+        result = validate_transaction(record)
+        results.append(
+            {
+                "transaction_id": record.get("transaction_id"),
+                "status": result["status"],
+                "reason": result["reason"],
+            }
+        )
+
+    valid = sum(1 for r in results if r["status"] == "passed")
+    return {
+        "dataset": str(dataset),
+        "total": len(results),
+        "valid": valid,
+        "invalid": len(results) - valid,
+        "results": results,
+    }
+
+
 def _default_shared_dir() -> Path:
     return Path("shared")
 
@@ -151,7 +187,26 @@ def main() -> None:
     parser.add_argument("--output-dir", type=Path, default=_default_shared_dir() / "output")
     parser.add_argument("--processing-dir", type=Path, default=_default_shared_dir() / "processing")
     parser.add_argument("--results-dir", type=Path, default=_default_shared_dir() / "results")
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help=(
+            "Validate every record in the dataset and print a JSON report to stdout "
+            "WITHOUT writing anything: no shared directory is read, created, or "
+            "modified, and no record is altered. Use --dataset to pick the input file."
+        ),
+    )
+    parser.add_argument(
+        "--dataset",
+        type=Path,
+        default=Path(DEFAULT_DATASET),
+        help=f"Dataset validated by --dry-run (default: {DEFAULT_DATASET}). Ignored without --dry-run.",
+    )
     args = parser.parse_args()
+
+    if args.dry_run:
+        print(json.dumps(dry_run(args.dataset), indent=2))
+        return
 
     tally = run_stage(args.input_dir, args.processing_dir, args.output_dir, args.results_dir)
     print(f"[{STAGE_NAME}] processed={tally['processed']} passed={tally['passed']} failed={tally['failed']}")

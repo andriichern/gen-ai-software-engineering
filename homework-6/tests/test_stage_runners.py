@@ -132,6 +132,32 @@ class TestValidationRunStage:
         out = capsys.readouterr().out
         assert "[validation] processed=1 passed=1 failed=0" in out
 
+    def test_main_cli_dry_run(self, tmp_path, stage_dirs, monkeypatch, capsys):
+        """--dry-run prints a JSON report and leaves every shared directory empty."""
+        dataset = tmp_path / "dataset.json"
+        dataset.write_text(json.dumps([_valid_record()]))
+        monkeypatch.setattr(
+            "sys.argv",
+            [
+                "validation.py",
+                "--dry-run",
+                "--dataset", str(dataset),
+                "--input-dir", str(stage_dirs["input"]),
+                "--output-dir", str(stage_dirs["output"]),
+                "--processing-dir", str(stage_dirs["processing"]),
+                "--results-dir", str(stage_dirs["results"]),
+            ],
+        )
+
+        validation.main()
+
+        report = json.loads(capsys.readouterr().out)
+        assert report["total"] == 1
+        assert report["valid"] == 1
+        assert report["invalid"] == 0
+        for key in ("input", "output", "processing", "results"):
+            assert list(stage_dirs[key].iterdir()) == []
+
     def test_default_shared_dir(self):
         assert validation._default_shared_dir() == Path("shared")
 

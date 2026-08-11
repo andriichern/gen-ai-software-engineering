@@ -1,7 +1,9 @@
 """Unit tests for the Validation stage."""
+import json
+
 import pytest
 
-from pipeline.validation import validate_transaction
+from pipeline.validation import dry_run, validate_transaction
 
 
 class TestValidateTransaction:
@@ -246,3 +248,58 @@ class TestValidateTransaction:
         sample_transaction["amount"] = "123.456789"
         result = validate_transaction(sample_transaction)
         assert result["status"] == "passed"
+
+
+class TestDryRun:
+    """Tests for dry_run: validates a whole dataset while writing nothing."""
+
+    def test_counts_valid_and_invalid(self, tmp_path, sample_transaction):
+        """Totals should split into valid and invalid across a mixed dataset."""
+        bad = dict(sample_transaction, transaction_id="TXN-BAD", currency="XYZ")
+        dataset = tmp_path / "mixed.json"
+        dataset.write_text(json.dumps([sample_transaction, bad]))
+
+        report = dry_run(dataset)
+
+        assert report["total"] == 2
+        assert report["valid"] == 1
+        assert report["invalid"] == 1
+        assert report["dataset"] == str(dataset)
+
+    def test_reports_reason_per_record(self, tmp_path, sample_transaction):
+        """Each result carries its transaction_id, status and rejection reason."""
+        bad = dict(sample_transaction, transaction_id="TXN-BAD", currency="XYZ")
+        dataset = tmp_path / "bad.json"
+        dataset.write_text(json.dumps([bad]))
+
+        entry = dry_run(dataset)["results"][0]
+
+        assert entry["transaction_id"] == "TXN-BAD"
+        assert entry["status"] == "failed"
+        assert "XYZ" in entry["reason"]
+
+    def test_writes_nothing(self, tmp_path, sample_transaction):
+        """A dry run must not create or modify any file beyond the dataset."""
+        dataset = tmp_path / "only.json"
+        dataset.write_text(json.dumps([sample_transaction]))
+        before = {p: p.stat().st_mtime_ns for p in tmp_path.rglob("*")}
+
+        dry_run(dataset)
+
+        after = {p: p.stat().st_mtime_ns for p in tmp_path.rglob("*")}
+        assert after == before
+
+    def test_rejects_non_array_dataset(self, tmp_path):
+        """A dataset that is not a JSON array is an error, not an empty run."""
+        dataset = tmp_path / "object.json"
+        dataset.write_text(json.dumps({"transaction_id": "TXN001"}))
+
+        with pytest.raises(ValueError, match="JSON array"):
+            dry_run(dataset)
+
+    def test_real_dataset_is_mostly_valid(self, sample_dataset_path):
+        """The shipped dataset should validate end to end without writing."""
+        report = dry_run(sample_dataset_path)
+
+        assert report["total"] == report["valid"] + report["invalid"]
+        assert report["total"] > 0

@@ -82,6 +82,16 @@ shared/
 
 **`status.json` and `report.json` are a first-class requirement of the pipeline, not a convenience.** State them as an observability obligation: the pipeline publishes its run state and outcomes as plain, self-describing JSON, so that any external process can observe a run's progress and results without coupling to the pipeline, parsing its logs, or counting files across directories. Say it exactly that way — as what the pipeline owes, never as a service to a named reader.
 
+### Standalone validation of the input source (firm)
+
+**The Validation stage is invocable on its own, to check the input source without processing it.** In this mode it reads every record from the input transaction source, applies exactly the same validation rules a full run applies, and reports each record's identifier, its pass/fail verdict and the reason for any failure, together with the total, valid and invalid counts.
+
+**It changes nothing.** No part of the `shared/` tree is read, created, or modified; no record is altered; nothing is written anywhere. The state of a run in progress or already finished is untouched by it.
+
+State this as an obligation the pipeline owes — the input source can be checked for validity independently of, and without disturbing, a processing run. As with `status.json` and `report.json`, say what the pipeline provides, never who or what makes use of it. It reads the input transaction source directly, never `shared/input/`, whose contents exist only for the duration of a run.
+
+Cover it in Mid-Level Objectives as a testable requirement, and in the Validation Stage's `Details` in Low-Level Tasks. It adds no entry to the pinned Low-Level Tasks table.
+
 ### Default compliance regime (firm)
 
 **GDPR only** (UK GDPR where the context is UK-specific) plus the Data Protection Act 2018 — governing PII handling (account numbers, names, any customer-identifying data) and the audit trail, and forming the Compliance Check stage's baseline rule set. AML/financial-crime regimes (e.g. UK MLR 2017, FCA customer due diligence) are explicitly **out of scope** — don't add AML-style checks unless the input asks.
@@ -197,6 +207,8 @@ The one permitted adaptation: when a stack **is** given, re-spell the signatures
 
 `File to CREATE` identifies which stage each module implements — the code-generation agent settles the final on-disk layout from its own conventions research, so never elaborate beyond the pinned path.
 
+The Validation Stage's `Details` must additionally cover its standalone, non-mutating invocation per the firm default above — what it reports and that it writes nothing. This adds no row to the table and no second `Function to CREATE`.
+
 Only `Prompt` and `Details` are written fresh: their **substance** comes from Step 1 and the firm defaults, stated in your own words.
 
 ## Step 4 — Self-Check (before writing)
@@ -208,6 +220,7 @@ Fix anything that fails, then write:
 - [ ] Mid-Level Objectives are each concrete and testable, none padded or force-merged
 - [ ] Implementation Notes covers every item listed in Step 3, and names GDPR Article 22 explicitly where the flag-only / hold-rather-than-reject reasoning appears
 - [ ] Exactly 5 Low-Level Tasks, in the fixed order, each with all 5 fields
+- [ ] Validation's standalone, non-mutating invocation appears in both Mid-Level Objectives and the Validation Stage's `Details`, stated as the pipeline's own obligation with no consumer named, and adds no row to the pinned table
 - [ ] **One marker per open question.** With no stack given, exactly one `[NEEDS CLARIFICATION: ...]` appears in the whole document — the pinned stack string on the monetary-values bullet — and nothing else notes the stack as pending
 - [ ] **Scope**: nothing outside the orchestrator + 5 stages is requested or described anywhere — no front-end, UI, web server, dashboard, monitoring tool, test/coverage target, documentation, MCP server, hook, CI, or presentation, in any section or framing
 - [ ] **No external consumer or tool is named anywhere**; run-state observability is stated as the pipeline's own obligation via `status.json`/`report.json`
