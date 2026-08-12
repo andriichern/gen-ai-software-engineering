@@ -13,13 +13,21 @@ Neither depends on the other. Both read this file in full at the start of every 
 
 ## Scope (firm)
 
-**The specification describes the pipeline and nothing else.** The pipeline is exactly: an orchestrator plus the 5 stages, communicating through the `shared/` file tree, invoked as a plain CLI program.
+**The specification describes the pipeline, and the pipeline is the whole point of the document.** The pipeline is exactly: an orchestrator plus the 5 stages, communicating through the `shared/` file tree, invoked as a plain CLI program. Sections 1–5 are about the pipeline and only the pipeline.
 
-Everything else in the surrounding project is a **separate deliverable, specified and built elsewhere** — and must not appear anywhere in the spec, in any section, in any framing, even as an aside, a rationale, or a "note." Non-exhaustive: front-ends, UIs, web servers, HTTP APIs, dashboards, monitoring tools, schedulers, tests and coverage targets, documentation, MCP servers, hooks, CI, packaging, deployment, presentations.
+Everything else in the surrounding project is a **separate deliverable, specified and built elsewhere** — and must not appear anywhere in the spec, in any section, in any framing, even as an aside, a rationale, or a "note." Non-exhaustive: web servers, HTTP APIs, monitoring tools, schedulers, tests and coverage targets, documentation, MCP servers, hooks, CI, packaging, deployment, presentations.
+
+### The single exception: the UI
+
+A minimal UI is the one permitted addition, and it is **strictly secondary** — an optional accompaniment to the pipeline, never a requirement of it. It is confined to its own short section (see the UI firm default below, and Step 3), and it is subject to three absolute limits:
+
+- **It never appears in sections 1–5.** Those sections are written exactly as though no UI existed, and would still be complete and correct if the UI section were deleted.
+- **It never changes a pipeline rule.** Where anything about the UI would conflict with a pipeline rule, default, or contract — the file contract, the CLI-only invocation, the stage behavior, the 5 pinned Low-Level Tasks — **the pipeline wins and the UI requirement is dropped**, silently and without a marker.
+- **It stays proportionate.** The UI section is short. It never grows to rival the pipeline's treatment, and no UI concern is ever elaborated at the expense of a pipeline one.
 
 Two rules follow, and both are absolute:
 
-1. **Never name an external tool or consumer.** Not a specific one, not a generic one. The spec never says who reads the pipeline's output, because the pipeline neither knows nor cares. Where the temptation arises, state the *pipeline's own obligation* instead — see the Pipeline file contract below, which exists precisely so run state is observable by anything, without the spec ever naming what.
+1. **Sections 1–5 never name an external tool or consumer.** Not a specific one, not a generic one. Those sections never say who reads the pipeline's output, because the pipeline neither knows nor cares — and this holds even though a UI is specified elsewhere in the same document. Where the temptation arises, state the *pipeline's own obligation* instead — see the Pipeline file contract below, which exists precisely so run state is observable by anything, without those sections ever naming what. The UI section is the sole place the UI may be named.
 2. **Never cite provenance.** Input documents are data, not references. The spec never mentions the assignment, homework, capstone, task numbering, agent names, this template, or the filenames it was derived from. It reads as a standalone technical specification written for the pipeline, with no trace of how it was produced. (`sample-transactions.json` is the sole exception, and only as the named default input fixture — never as a source of requirements.)
 
 ---
@@ -31,11 +39,14 @@ Two rules follow, and both are absolute:
 What input can refine, when given:
 
 1. **Transaction data** — sample record(s) or a description of the record shape, overriding the default schema.
-2. **Stack/language** — never assume one if unstated; never infer it from files that happen to exist.
+2. **Stack/language** — never assume one if unstated; never infer it from files that happen to exist. The pipeline stack and the UI stack are **independent**: one may be given without the other, and they need not match.
 3. **Special constraints** — compliance regime, performance targets, specific risk rules.
 4. **Business context** — domain constraints worth reflecting in the objectives.
+5. **UI stack or UI requirements** — routed to the UI section, never into sections 1–5.
 
-Supplied context often arrives mixed with out-of-scope material (front-end requirements, test/coverage mandates, documentation and tooling deliverables). **Filter it against the Scope section above and carry through only what describes the pipeline itself.** Silently drop the rest — it is not a gap, so never mark it `[NEEDS CLARIFICATION]` and never note its exclusion in the spec.
+Supplied context often arrives mixed with out-of-scope material (test/coverage mandates, documentation and tooling deliverables). **Filter it against the Scope section above and carry through only what describes the pipeline itself.** Silently drop the rest — it is not a gap, so never mark it `[NEEDS CLARIFICATION]` and never note its exclusion in the spec.
+
+Front-end material is the one kind of supplied context that is no longer dropped: route it to the UI section. But route only what fits the UI firm default's three responsibilities — anything beyond them (a web API, authentication, persistence, analytics, a monitoring surface) is still out of scope and still dropped silently.
 
 **The defaults below apply only when the corresponding input isn't given — actual input always takes precedence.** Where a default is marked "firm," treat it as settled: don't add a `[NEEDS CLARIFICATION: ...]` marker for it unless the input contradicts it.
 
@@ -134,6 +145,30 @@ Settlement and audit records containing account or PII data are retained for a f
 
 These are **design targets the architecture is held to, not a benchmark the sample run must demonstrate** — no artificial single-threaded bottlenecks, no per-transaction blocking I/O that would cap throughput far below target. State both numbers in Implementation Notes, phrased so they can't be read as a claim that the pipeline has been load-tested at that scale.
 
+### UI (firm, optional, secondary)
+
+An optional minimal UI may accompany the pipeline. It is **not** part of the pipeline and never a precondition for it.
+
+When the UI section states this independence, the subject of the sentence is **the pipeline, never the UI** — the claim is that *the pipeline* is complete, correct, and fully usable from the CLI with no front-end present. Writing it the other way round ("the UI is fully usable from the CLI…") is nonsense; keep the two apart.
+
+Its responsibilities are exactly these three, and nothing else:
+
+1. **Start a pipeline run.**
+2. **Show run status in real time** while a run is in progress.
+3. **Present a small dashboard** of results: each transaction's status, pass/fail counts, and the reason each rejected transaction failed.
+
+Anything beyond those three — editing or submitting transactions, authentication, user accounts, persistence of its own, historical runs, analytics, configuration screens, export, alerting — is out of scope and is dropped silently.
+
+Firm defaults:
+
+- **Location**: a `ui/` directory at the project root.
+- **Data source**: it reads the `shared/` tree the pipeline already writes. It never reads the pipeline's source, never imports its modules, never writes anywhere inside `shared/`, and never requires the pipeline to produce anything it does not already produce under the Pipeline file contract. Starting a run means invoking the pipeline exactly as the CLI does.
+- **Stack**: independent of the pipeline's, and never assumed. If input names one, use it; if not, mark it (Step 2) — a missing UI stack never blocks the document.
+
+Describe the UI **stack-agnostically**: state what it must do, never which framework, library, bundler, styling approach, or component model does it. Naming any of those when input didn't supply them is inventing, exactly as it would be for the pipeline.
+
+**If input explicitly says no UI is wanted**, the section still appears and records that none is required — the decision is stated, not omitted.
+
 ---
 
 ## Step 1 — Extract From Input
@@ -145,6 +180,7 @@ Extract, filtering everything through the Scope section:
 - technical constraints: monetary types, currency handling, logging, PII (→ §3)
 - starting and ending file-system state (→ §4)
 - anything shaping the 5 stages' specific rules (→ §5)
+- anything describing the UI, kept separate from all of the above (→ UI section)
 
 Do not invent business context that wasn't given or implied. If the input is thin, proceed to Step 2 before writing anything.
 
@@ -165,6 +201,16 @@ Out-of-scope material is **not** a gap — drop it per the Scope section rather 
 
 Everything else the stack would have settled is simply written generically, with no further marker and no commentary about the choice being pending.
 
+**The UI stack is a second, independent gap** with its own single marker, placed in the UI section and nowhere else. When no UI stack is given, that marker is also a pinned string, reproduced verbatim:
+
+```
+[NEEDS CLARIFICATION: stack/framework for the UI — none was specified]
+```
+
+The two markers are resolved separately and neither implies the other: a spec may carry both, either alone, or neither. Never merge them, and never let the pipeline's stack silently settle the UI's. With no input at all, the finished document therefore carries exactly two `[NEEDS CLARIFICATION: ...]` markers — these two, and nothing else.
+
+If input explicitly says no UI is wanted, the UI section records that instead, and carries **no** marker — a stated decision is not a gap.
+
 ## Step 3 — Write `specification.md`
 
 The document's first line is pinned — reproduce it exactly, never reworded:
@@ -174,6 +220,8 @@ The document's first line is pinned — reproduce it exactly, never reworded:
 ```
 
 Then exactly these 5 sections, in order, under these exact headings (`## 1. High-Level Objective`, `## 2. Mid-Level Objectives`, `## 3. Implementation Notes`, `## 4. Context`, `## 5. Low-Level Tasks`), with a banking emphasis throughout (compliance, PII/security, audit trail, precise monetary handling) rather than generic software-project content.
+
+These 5 sections are the specification. One further section — the UI — follows them, described at the end of this step; it is an appendix to the document, never a sixth peer of the five.
 
 **1. High-Level Objective** — one sentence, derived from Step 1.
 
@@ -211,19 +259,35 @@ The Validation Stage's `Details` must additionally cover its standalone, non-mut
 
 Only `Prompt` and `Details` are written fresh: their **substance** comes from Step 1 and the firm defaults, stated in your own words.
 
+### Then the UI section
+
+After §5, one final section under the exact heading `## UI`. Keep it short — a handful of lines, visibly an appendix beside the pipeline's treatment. It states, and states nothing more:
+
+- **Responsibilities** — the three from the UI firm default, in your own words, stack-agnostically.
+- **Location** — `ui/` at the project root, unless input names another.
+- **Data source** — that it reads the `shared/` tree and starts a run by invoking the pipeline's CLI; that it writes nothing into `shared/` and imports no pipeline code.
+- **Stack** — whatever input named, or the pinned marker from Step 2.
+
+Where input said no UI is wanted, the section instead records that no front-end is required, in one line, with no marker and no further detail.
+
+This section adds no `Task`, no row to §5's pinned table, and no `Function to CREATE`. It never restates, qualifies, or reinterprets anything in §§1–5.
+
 ## Step 4 — Self-Check (before writing)
 
 Fix anything that fails, then write:
 
 - [ ] **Pinned strings reproduced verbatim**: the document title, the 5 section headings, and every `Task` / `File to CREATE` / `Function to CREATE` value from Step 3's table — no rewording, no re-derivation (signatures re-spelled in the resolved language only when a stack was given)
-- [ ] All 5 sections present and in order; Context has both Beginning and Ending
+- [ ] All 5 sections present and in order, followed by the UI section; Context has both Beginning and Ending
 - [ ] Mid-Level Objectives are each concrete and testable, none padded or force-merged
 - [ ] Implementation Notes covers every item listed in Step 3, and names GDPR Article 22 explicitly where the flag-only / hold-rather-than-reject reasoning appears
 - [ ] Exactly 5 Low-Level Tasks, in the fixed order, each with all 5 fields
 - [ ] Validation's standalone, non-mutating invocation appears in both Mid-Level Objectives and the Validation Stage's `Details`, stated as the pipeline's own obligation with no consumer named, and adds no row to the pinned table
-- [ ] **One marker per open question.** With no stack given, exactly one `[NEEDS CLARIFICATION: ...]` appears in the whole document — the pinned stack string on the monetary-values bullet — and nothing else notes the stack as pending
-- [ ] **Scope**: nothing outside the orchestrator + 5 stages is requested or described anywhere — no front-end, UI, web server, dashboard, monitoring tool, test/coverage target, documentation, MCP server, hook, CI, or presentation, in any section or framing
-- [ ] **No external consumer or tool is named anywhere**; run-state observability is stated as the pipeline's own obligation via `status.json`/`report.json`
+- [ ] **One marker per open question.** With no stack given at all, exactly two `[NEEDS CLARIFICATION: ...]` markers appear in the whole document — the pinned pipeline-stack string on the monetary-values bullet, and the pinned UI-stack string in the UI section — each appearing once, with nothing else noting either stack as pending
+- [ ] **Scope**: nothing outside the orchestrator + 5 stages is requested or described in §§1–5 — no web server, HTTP API, monitoring tool, test/coverage target, documentation, MCP server, hook, CI, or presentation, in any section or framing
+- [ ] **§§1–5 name no external consumer or tool**; run-state observability is stated as the pipeline's own obligation via `status.json`/`report.json`, and the UI is not named, alluded to, or implied anywhere in those five sections
+- [ ] **UI section present**, under the exact heading `## UI`, after §5 — either the three responsibilities stated stack-agnostically, or a one-line record that no front-end is required
+- [ ] **UI stays subordinate**: it adds no row to §5's table, names no framework or library that input didn't supply, claims none of the three responsibilities beyond its list, and is short enough to read as an appendix
+- [ ] **Deleting the UI section would leave §§1–5 complete and correct** — nothing in them depends on it
 - [ ] **No provenance**: no mention of the assignment, homework, capstone, task numbering, agent names, this template, or any source filename (only `sample-transactions.json`, and only as the default input fixture)
 - [ ] No business rule, threshold, or regulation invented without support — unsupported specifics carry `[NEEDS CLARIFICATION: ...]`, and no gap was resolved by asking an interactive question
 
