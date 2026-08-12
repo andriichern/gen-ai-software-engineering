@@ -11,33 +11,59 @@
     "channel": "online",
     "country": "US"
   },
-  "validation_result": {
-    "status": "passed",
-    "reason": null,
-    "checked_at": "2026-08-10T19:59:03.554478+00:00"
-  },
-  "fraud_result": {
-    "score": "0.30",
-    "factors": {
-      "high_value_amount": false,
-      "cross_border_mismatch": true,
-      "unusual_hour_timing": false
+  "verdict": "SETTLED",
+  "fraud_flagged": false,
+  "reason": null,
+  "stage_outcomes": {
+    "validation_result": {
+      "passed": true,
+      "reason": null,
+      "errors": []
     },
-    "flagged": false,
-    "scored_at": "2026-08-10T19:59:04.571030+00:00"
-  },
-  "compliance_result": {
-    "status": "cleared",
-    "reason": null,
-    "checked_at": "2026-08-10T19:59:05.591205+00:00"
-  },
-  "settlement_result": {
-    "status": "settled",
-    "settlement_reference": "fd2807d8-4e2b-4ca9-8d1e-dbcfd87ecf9d",
-    "settlement_timestamp": "2026-08-10T19:59:06.607787+00:00",
-    "settled_amount": "9999.99",
-    "currency": "USD",
-    "retention_period_years": 5
-  },
-  "final_status": "settled"
+    "fraud_result": {
+      "score": "0.3",
+      "flagged": false,
+      "factors": {
+        "high_value_amount": {
+          "triggered": false,
+          "weight": 0.5,
+          "applicable": true,
+          "note": "9999.99 USD equivalent"
+        },
+        "cross_border_mismatch": {
+          "triggered": true,
+          "weight": 0.3,
+          "applicable": true,
+          "note": "metadata.country=US vs baseline GB"
+        },
+        "unusual_hour_timing": {
+          "triggered": false,
+          "weight": 0.2,
+          "applicable": true,
+          "note": "transaction time 09:30:00 UTC"
+        }
+      },
+      "missing": []
+    },
+    "compliance_result": {
+      "status": "passed",
+      "reason": null,
+      "rule_outcomes": {
+        "fraud_conditional_hold": {
+          "outcome": "clear",
+          "note": "no fraud flag present"
+        },
+        "validation_conditional_audit_completeness": {
+          "outcome": "compliant",
+          "note": "record established well-formed by validation"
+        }
+      }
+    },
+    "settlement_result": {
+      "status": "settled",
+      "settlement_reference": "c9364a7c-fb44-41ff-8b88-b351e340aec6",
+      "settlement_timestamp": "2026-08-12T18:33:57.532589+00:00",
+      "reason": "retained 5 years under GDPR legal-obligation basis, then purged or anonymized"
+    }
+  }
 }

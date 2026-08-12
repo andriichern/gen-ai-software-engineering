@@ -1,205 +1,128 @@
-"""Unit tests for the Compliance Check stage."""
-import pytest
+"""Unit tests for pipeline/compliance.py."""
+from __future__ import annotations
 
+from lib.models import StageContext, Transaction
 from pipeline.compliance import check_compliance
 
 
-class TestCheckCompliance:
-    """Tests for check_compliance function."""
+def _check(data: dict, context: StageContext):
+    return check_compliance(Transaction.from_dict(data), context)
 
-    def test_cleared_when_not_flagged(self, sample_transaction):
-        """Unflagged transaction should be cleared."""
-        fraud_result = {
-            "score": "0.30",
-            "flagged": False,
-            "factors": {
-                "high_value_amount": False,
-                "cross_border_mismatch": False,
-                "unusual_hour_timing": False
-            }
-        }
 
-        result = check_compliance(sample_transaction, fraud_result)
+FRAUD_FLAGGED = {"score": "0.90", "flagged": True, "factors": {}, "missing": []}
+FRAUD_CLEAR = {"score": "0.10", "flagged": False, "factors": {}, "missing": []}
+VALID_PASSED = {"passed": True, "reason": None, "errors": []}
+VALID_FAILED = {"passed": False, "reason": "missing required field: amount", "errors": ["missing required field: amount"]}
 
-        assert result["status"] == "cleared"
-        assert result["reason"] is None
-        assert "checked_at" in result
 
-    def test_held_when_flagged(self, sample_transaction):
-        """Flagged transaction should be held for review."""
-        fraud_result = {
-            "score": "0.50",
-            "flagged": True,
-            "factors": {
-                "high_value_amount": True,
-                "cross_border_mismatch": False,
-                "unusual_hour_timing": False
-            }
-        }
+# ---------------------------------------------------------------------------
+# Happy path
+# ---------------------------------------------------------------------------
 
-        result = check_compliance(sample_transaction, fraud_result)
 
-        assert result["status"] == "held"
-        assert "fraud score" in result["reason"]
-        assert "0.50" in result["reason"]
+def test_clean_transaction_passes(sample_transaction):
+    context = StageContext.from_dict({"fraud_result": FRAUD_CLEAR, "validation_result": VALID_PASSED})
+    result = _check(sample_transaction, context)
+    assert result.status == "passed"
+    assert result.reason is None
 
-    def test_held_explains_high_flag(self, sample_transaction):
-        """Held status should explain the fraud flag."""
-        fraud_result = {
-            "score": "0.85",
-            "flagged": True,
-            "factors": {
-                "high_value_amount": True,
-                "cross_border_mismatch": True,
-                "unusual_hour_timing": True
-            }
-        }
 
-        result = check_compliance(sample_transaction, fraud_result)
+def test_fraud_flagged_transaction_is_held_not_rejected(sample_transaction):
+    """Per GDPR Art. 22, compliance never auto-rejects: it holds for human
+    review instead."""
+    context = StageContext.from_dict({"fraud_result": FRAUD_FLAGGED, "validation_result": VALID_PASSED})
+    result = _check(sample_transaction, context)
+    assert result.status == "held"
+    assert result.reason is not None
+    assert result.status != "rejected"
 
-        assert result["status"] == "held"
-        assert "0.85" in result["reason"]
 
-    def test_held_on_flagged_with_zero_score(self, sample_transaction):
-        """Even flagged transactions with any score should be held."""
-        fraud_result = {
-            "score": "0.00",
-            "flagged": True  # Explicitly flagged despite low score
-        }
+def test_compliance_never_produces_rejected_status(sample_transaction, edge_case_transactions):
+    """check_compliance's only two outcomes are 'passed' and 'held' -
+    rejection is never one of its statuses (Art. 22 automated-decision ban)."""
+    for txn in [sample_transaction] + edge_case_transactions:
+        for fraud in (FRAUD_FLAGGED, FRAUD_CLEAR, None):
+            ctx_data = {"validation_result": VALID_PASSED}
+            if fraud is not None:
+                ctx_data["fraud_result"] = fraud
+            result = _check(txn, StageContext.from_dict(ctx_data))
+            assert result.status in ("passed", "held")
 
-        result = check_compliance(sample_transaction, fraud_result)
 
-        assert result["status"] == "held"
+# ---------------------------------------------------------------------------
+# Rule outcomes structure
+# ---------------------------------------------------------------------------
 
-    def test_cleared_with_no_flagged_field(self, sample_transaction):
-        """Missing flagged field (falsy) should clear."""
-        fraud_result = {
-            "score": "0.50",
-            # No flagged field
-        }
 
-        result = check_compliance(sample_transaction, fraud_result)
+def test_rule_outcomes_include_both_rules(sample_transaction):
+    context = StageContext.from_dict({"fraud_result": FRAUD_CLEAR, "validation_result": VALID_PASSED})
+    result = _check(sample_transaction, context)
+    assert set(result.rule_outcomes) == {"fraud_conditional_hold", "validation_conditional_audit_completeness"}
 
-        assert result["status"] == "cleared"
 
-    def test_cleared_with_false_flagged(self, sample_transaction):
-        """Explicitly false flagged field should clear."""
-        fraud_result = {
-            "score": "0.50",
-            "flagged": False
-        }
+def test_failed_validation_marks_incomplete_audit(sample_transaction):
+    context = StageContext.from_dict({"fraud_result": FRAUD_CLEAR, "validation_result": VALID_FAILED})
+    result = _check(sample_transaction, context)
+    assert result.rule_outcomes["validation_conditional_audit_completeness"]["outcome"] == "incomplete_audit"
+    # Failing validation does not itself cause a hold - only fraud does.
+    assert result.status == "passed"
 
-        result = check_compliance(sample_transaction, fraud_result)
 
-        assert result["status"] == "cleared"
-        assert result["reason"] is None
+# ---------------------------------------------------------------------------
+# Absent-annotation cases: each rule depends on one specific stage's
+# annotation. Missing that annotation must yield an explicit not-applicable
+# outcome naming it, never a raise, a default, or a fabricated clean pass.
+# ---------------------------------------------------------------------------
 
-    def test_result_has_checked_at_timestamp(self, sample_transaction):
-        """Result should have a checked_at ISO 8601 timestamp."""
-        fraud_result = {"flagged": False}
 
-        result = check_compliance(sample_transaction, fraud_result)
+def test_empty_context_both_rules_not_applicable(sample_transaction):
+    result = _check(sample_transaction, StageContext())
+    assert result.rule_outcomes["fraud_conditional_hold"]["outcome"] == "not_applicable"
+    assert "fraud_detection" in result.rule_outcomes["fraud_conditional_hold"]["note"]
+    assert result.rule_outcomes["validation_conditional_audit_completeness"]["outcome"] == "not_applicable"
+    assert "validation" in result.rule_outcomes["validation_conditional_audit_completeness"]["note"]
+    # Absence is never silently treated as a clean pass verdict overall -
+    # status still resolves, but every rule that could not run says so.
+    assert result.status == "passed"  # no hold rule triggered = passed overall
 
-        assert "checked_at" in result
-        assert "T" in result["checked_at"]  # ISO 8601 format
-        assert "+" in result["checked_at"] or "Z" in result["checked_at"]
 
-    def test_multiple_calls_have_different_timestamps(self, sample_transaction):
-        """Multiple calls should produce different checked_at times."""
-        fraud_result = {"flagged": False}
+def test_partial_context_missing_fraud_only(sample_transaction):
+    context = StageContext.from_dict({"validation_result": VALID_PASSED})
+    result = _check(sample_transaction, context)
+    assert result.rule_outcomes["fraud_conditional_hold"]["outcome"] == "not_applicable"
+    assert result.rule_outcomes["validation_conditional_audit_completeness"]["outcome"] == "compliant"
 
-        result1 = check_compliance(sample_transaction, fraud_result)
-        result2 = check_compliance(sample_transaction, fraud_result)
 
-        # Timestamps should be close but might differ (depending on timing)
-        assert result1["checked_at"]
-        assert result2["checked_at"]
+def test_partial_context_missing_validation_only(sample_transaction):
+    context = StageContext.from_dict({"fraud_result": FRAUD_CLEAR})
+    result = _check(sample_transaction, context)
+    assert result.rule_outcomes["fraud_conditional_hold"]["outcome"] == "clear"
+    assert result.rule_outcomes["validation_conditional_audit_completeness"]["outcome"] == "not_applicable"
 
-    def test_empty_fraud_result_clears_transaction(self, sample_transaction):
-        """Empty fraud result should clear transaction (no flag)."""
-        fraud_result = {}
 
-        result = check_compliance(sample_transaction, fraud_result)
+def test_absent_fraud_annotation_never_raises(sample_transaction):
+    _check(sample_transaction, StageContext())  # must not raise
 
-        assert result["status"] == "cleared"
 
-    def test_none_fraud_result_clears_transaction(self, sample_transaction):
-        """None fraud result should be treated as falsy (clear)."""
-        # Check how None is handled
-        result = check_compliance(sample_transaction, {})
-        assert result["status"] == "cleared"
+def test_absent_annotation_never_substitutes_a_default_flag(sample_transaction):
+    """A missing fraud_result must never be treated as 'not flagged' (a
+    silently assumed default) - it must be recorded not_applicable."""
+    result_missing = _check(sample_transaction, StageContext())
+    result_explicit_clear = _check(
+        sample_transaction, StageContext.from_dict({"fraud_result": FRAUD_CLEAR})
+    )
+    assert result_missing.rule_outcomes["fraud_conditional_hold"]["outcome"] == "not_applicable"
+    assert result_explicit_clear.rule_outcomes["fraud_conditional_hold"]["outcome"] == "clear"
+    assert result_missing.rule_outcomes["fraud_conditional_hold"] != result_explicit_clear.rule_outcomes["fraud_conditional_hold"]
 
-    def test_held_with_high_risk_score(self, sample_transaction):
-        """Very high fraud score should result in held status."""
-        fraud_result = {
-            "score": "1.00",
-            "flagged": True
-        }
 
-        result = check_compliance(sample_transaction, fraud_result)
+# ---------------------------------------------------------------------------
+# Non-termination
+# ---------------------------------------------------------------------------
 
-        assert result["status"] == "held"
 
-    def test_compliance_never_rejects(self, sample_transaction):
-        """Compliance should never reject (only clear or hold)."""
-        # Test various fraud results
-        for flagged in [True, False]:
-            fraud_result = {"flagged": flagged}
-            result = check_compliance(sample_transaction, fraud_result)
-            assert result["status"] in ["cleared", "held"]
-
-    def test_compliance_respects_gdpr_principle(self, sample_transaction):
-        """Flagged transactions are held for human review (GDPR Article 22)."""
-        # This is the core compliance principle
-        fraud_result = {"flagged": True}
-        result = check_compliance(sample_transaction, fraud_result)
-
-        # Held = human review = no automated adverse decision
-        assert result["status"] == "held"
-        assert "human review" in result["reason"]
-
-    def test_compliance_with_different_fraud_scores(self, sample_transaction):
-        """Test compliance with various fraud scores."""
-        for score_str in ["0.00", "0.25", "0.50", "0.75", "1.00"]:
-            fraud_result = {"score": score_str, "flagged": False}
-            result = check_compliance(sample_transaction, fraud_result)
-            assert result["status"] == "cleared"
-
-    def test_compliance_ignores_transaction_pii(self, sample_transaction):
-        """Compliance should not log PII from transaction."""
-        # Even though we don't directly check output, the fact that
-        # check_compliance takes a record (which contains PII in original)
-        # but only checks fraud result shows GDPR-safe behavior
-        result = check_compliance(sample_transaction, {"flagged": True})
-
-        # Result should not contain account numbers, amounts, etc. in reason
-        assert "ACC-" not in result["reason"]
-        assert "1000" not in result["reason"]
-
-    def test_very_high_flagged_score_reason(self, sample_transaction):
-        """Reason text should mention fraud score."""
-        fraud_result = {
-            "score": "0.99",
-            "flagged": True
-        }
-
-        result = check_compliance(sample_transaction, fraud_result)
-
-        assert "held for human review" in result["reason"]
-        assert "fraud score" in result["reason"]
-
-    def test_valid_transactions_compliance(self, valid_transactions):
-        """Valid transactions with low fraud scores should clear."""
-        fraud_result = {"flagged": False}
-
-        for tx in valid_transactions[:2]:  # Test a couple
-            result = check_compliance(tx, fraud_result)
-            assert result["status"] == "cleared"
-
-    def test_edge_case_compliance(self, edge_case_transactions):
-        """Edge case transactions should process through compliance."""
-        for tx in edge_case_transactions:
-            fraud_result = {"flagged": True}
-            result = check_compliance(tx, fraud_result)
-            assert result["status"] == "held"
-            assert "fraud score" in result["reason"]
+def test_compliance_never_terminates_the_flow(sample_transaction, edge_case_transactions):
+    for txn in [sample_transaction] + edge_case_transactions:
+        result = _check(txn, StageContext())
+        assert result is not None
+        assert result.status in ("passed", "held")

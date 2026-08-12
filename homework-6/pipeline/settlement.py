@@ -1,111 +1,92 @@
 """Settlement Processing stage.
 
-Reads compliance-cleared records from shared/output, moves each into
-shared/processing while settling it against an internal simulated ledger (no
-external/network call), and writes the settled record back to shared/output
-for Reporting.
+Settles each transaction that passed Compliance Check via an internal
+simulated ledger — no external network calls. Held or rejected transactions
+are marked not-settled with the reason. If Compliance's outcome is absent
+from context, settlement is recorded not-settled, naming that the compliance
+annotation was missing (never inventing a compliance outcome).
+
+Audit/settlement records containing account or PII data are retained for 5
+years under GDPR's legal-obligation basis, then purged or anonymized; this
+stage does not implement retention/purge scheduling itself (out of scope for
+a single processing run) but records the retention basis in its outcome.
 """
 from __future__ import annotations
 
 import argparse
-from decimal import Decimal
+import uuid
 from pathlib import Path
-from typing import Any, Dict
 
-from lib.common import (
-    audit,
-    lean_data,
-    make_envelope,
-    new_id,
-    parse_decimal,
-    read_json,
-    utc_now_iso,
-    write_envelope,
-    write_final_result,
-)
-from lib.stage_runner import run_stage_loop
+from lib.message_io import now_iso
+from lib.models import SettlementResult, StageContext, Transaction
+from lib.stage_runner import run_downstream_stage
 
-STAGE_NAME = "settlement"
-RETENTION_PERIOD_YEARS = 5
+RETENTION_NOTE = "retained 5 years under GDPR legal-obligation basis, then purged or anonymized"
 
 
-def settle_transaction(record: Dict[str, Any], compliance: Dict[str, Any]) -> Dict[str, Any]:
-    """Settles a cleared record against the internal simulated ledger. Refuses
-    to settle anything whose compliance result is absent or not cleared.
-    Negative amounts (refunds) settle exactly as legitimate transactions do.
+def settle_transaction(record: Transaction, context: StageContext) -> SettlementResult:
+    if context.compliance_result is None:
+        return SettlementResult(
+            status="not_settled",
+            reason="compliance status unknown: compliance annotation missing",
+        )
 
-    Returns a SettlementResult: {"status": "settled", "settlement_reference":
-    uuid4, "settlement_timestamp": ISO 8601 UTC, "settled_amount": decimal
-    string, "currency": str, "retention_period_years": 5}.
-    """
-    if not compliance or compliance.get("status") != "cleared":
-        raise ValueError("cannot settle a record whose compliance result is absent or not cleared")
+    if context.compliance_result.status == "held":
+        return SettlementResult(
+            status="not_settled",
+            reason=f"held by compliance: {context.compliance_result.reason}",
+        )
 
-    amount: Decimal = parse_decimal(record["amount"])
+    if context.compliance_result.status == "rejected":
+        return SettlementResult(
+            status="not_settled",
+            reason=f"rejected by compliance: {context.compliance_result.reason}",
+        )
 
-    return {
-        "status": "settled",
-        "settlement_reference": new_id(),
-        "settlement_timestamp": utc_now_iso(),
-        "settled_amount": str(amount),
-        "currency": record["currency"],
-        "retention_period_years": RETENTION_PERIOD_YEARS,
-    }
+    if context.compliance_result.status != "passed":
+        return SettlementResult(
+            status="not_settled",
+            reason=f"compliance outcome unclear: {context.compliance_result.status}",
+        )
 
-def run_stage(input_dir: Path, processing_dir: Path, output_dir: Path, results_dir: Path) -> Dict[str, int]:
-    def process_transaction(transaction_id: str, working: Path) -> bool:
-        envelope = read_json(working)
-        data = envelope["data"]
-
-        compliance_result = data.get("compliance_result", {})
-        try:
-            result = settle_transaction(data, compliance_result)
-        except ValueError as exc:
-            write_final_result(
-                results_dir,
-                input_dir,
-                transaction_id,
-                {
-                    "validation_result": data.get("validation_result"),
-                    "fraud_result": data.get("fraud_result"),
-                    "compliance_result": compliance_result,
-                    "reason": str(exc),
-                    "final_status": "settlement_refused",
-                },
-            )
-            audit(STAGE_NAME, transaction_id, f"refused: {exc}")
-            return False
-
-        new_data = lean_data(transaction_id, data["amount"], data["currency"], {
-            "validation_result": data.get("validation_result"),
-            "fraud_result": data.get("fraud_result"),
-            "compliance_result": compliance_result,
-            "settlement_result": result,
-            "country": data.get("country"),
-            "transaction_timestamp": data.get("transaction_timestamp"),
-        })
-        new_envelope = make_envelope(STAGE_NAME, "reporting", new_data)
-        write_envelope(output_dir, transaction_id, new_envelope)
-        audit(STAGE_NAME, transaction_id, "settled")
-        return True
-
-    return run_stage_loop(output_dir, processing_dir, "move", process_transaction)
+    return SettlementResult(
+        status="settled",
+        settlement_reference=str(uuid.uuid4()),
+        settlement_timestamp=now_iso(),
+        reason=RETENTION_NOTE,
+    )
 
 
-def _default_shared_dir() -> Path:
-    return Path("shared")
+def _is_pass(result: SettlementResult) -> bool:
+    return result.status == "settled"
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run the Settlement Processing stage standalone.")
-    parser.add_argument("--input-dir", type=Path, default=_default_shared_dir() / "input")
-    parser.add_argument("--output-dir", type=Path, default=_default_shared_dir() / "output")
-    parser.add_argument("--processing-dir", type=Path, default=_default_shared_dir() / "processing")
-    parser.add_argument("--results-dir", type=Path, default=_default_shared_dir() / "results")
+    parser = argparse.ArgumentParser(
+        prog="settlement",
+        description="Settlement Processing stage for the transaction processing pipeline.",
+    )
+    parser.add_argument("--input-dir", default="shared/output", help="Directory of upstream messages to read.")
+    parser.add_argument("--output-dir", default="shared/output", help="Directory to write annotated messages to.")
+    parser.add_argument(
+        "--original-dir",
+        default="shared/input",
+        help="Directory holding original transaction records.",
+    )
     args = parser.parse_args()
 
-    tally = run_stage(args.input_dir, args.processing_dir, args.output_dir, args.results_dir)
-    print(f"[{STAGE_NAME}] processed={tally['processed']} passed={tally['passed']} failed={tally['failed']}")
+    tally = run_downstream_stage(
+        stage_name="settlement",
+        next_stage="reporting",
+        result_key="settlement_result",
+        compute_fn=settle_transaction,
+        source_dir=Path(args.input_dir),
+        processing_dir=Path(args.output_dir).parent / "processing",
+        output_dir=Path(args.output_dir),
+        input_dir=Path(args.original_dir),
+        is_pass=_is_pass,
+    )
+    print(f"[settlement] done: {tally}")
 
 
 if __name__ == "__main__":

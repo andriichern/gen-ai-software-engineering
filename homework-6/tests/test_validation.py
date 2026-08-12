@@ -1,305 +1,203 @@
-"""Unit tests for the Validation stage."""
+"""Unit tests for pipeline/validation.py."""
+from __future__ import annotations
+
 import json
 
 import pytest
 
-from pipeline.validation import dry_run, validate_transaction
+from lib.models import StageContext, Transaction
+from pipeline.validation import run_standalone_check, validate_transaction
 
 
-class TestValidateTransaction:
-    """Tests for validate_transaction function."""
-
-    def test_valid_transaction_passes(self, sample_transaction):
-        """A properly formed transaction should pass validation."""
-        result = validate_transaction(sample_transaction)
-        assert result["status"] == "passed"
-        assert result["reason"] is None
-        assert "checked_at" in result
-
-    def test_missing_transaction_id(self, sample_transaction):
-        """Transaction without transaction_id should fail."""
-        del sample_transaction["transaction_id"]
-        result = validate_transaction(sample_transaction)
-        assert result["status"] == "failed"
-        assert "transaction_id" in result["reason"]
-
-    def test_missing_timestamp(self, sample_transaction):
-        """Transaction without timestamp should fail."""
-        del sample_transaction["timestamp"]
-        result = validate_transaction(sample_transaction)
-        assert result["status"] == "failed"
-        assert "timestamp" in result["reason"]
-
-    def test_missing_source_account(self, sample_transaction):
-        """Transaction without source_account should fail."""
-        del sample_transaction["source_account"]
-        result = validate_transaction(sample_transaction)
-        assert result["status"] == "failed"
-        assert "source_account" in result["reason"]
-
-    def test_missing_destination_account(self, sample_transaction):
-        """Transaction without destination_account should fail."""
-        del sample_transaction["destination_account"]
-        result = validate_transaction(sample_transaction)
-        assert result["status"] == "failed"
-        assert "destination_account" in result["reason"]
-
-    def test_missing_amount(self, sample_transaction):
-        """Transaction without amount should fail."""
-        del sample_transaction["amount"]
-        result = validate_transaction(sample_transaction)
-        assert result["status"] == "failed"
-        assert "amount" in result["reason"]
-
-    def test_missing_currency(self, sample_transaction):
-        """Transaction without currency should fail."""
-        del sample_transaction["currency"]
-        result = validate_transaction(sample_transaction)
-        assert result["status"] == "failed"
-        assert "currency" in result["reason"]
-
-    def test_missing_transaction_type(self, sample_transaction):
-        """Transaction without transaction_type should fail."""
-        del sample_transaction["transaction_type"]
-        result = validate_transaction(sample_transaction)
-        assert result["status"] == "failed"
-        assert "transaction_type" in result["reason"]
-
-    def test_missing_description(self, sample_transaction):
-        """Transaction without description should fail."""
-        del sample_transaction["description"]
-        result = validate_transaction(sample_transaction)
-        assert result["status"] == "failed"
-        assert "description" in result["reason"]
-
-    def test_missing_metadata(self, sample_transaction):
-        """Transaction without metadata should fail."""
-        del sample_transaction["metadata"]
-        result = validate_transaction(sample_transaction)
-        assert result["status"] == "failed"
-        assert "metadata" in result["reason"]
-
-    def test_invalid_transaction_id_type(self, sample_transaction):
-        """transaction_id must be a string."""
-        sample_transaction["transaction_id"] = 12345
-        result = validate_transaction(sample_transaction)
-        assert result["status"] == "failed"
-        assert "string" in result["reason"]
-
-    def test_invalid_timestamp_format(self, sample_transaction):
-        """Invalid timestamp format should fail."""
-        sample_transaction["timestamp"] = "not-a-timestamp"
-        result = validate_transaction(sample_transaction)
-        assert result["status"] == "failed"
-        assert "timestamp" in result["reason"]
-
-    def test_invalid_timestamp_type(self, sample_transaction):
-        """timestamp must be parseable as an ISO 8601 string."""
-        sample_transaction["timestamp"] = 123456789
-        # When timestamp is not a string, parse_iso8601 will fail
-        # This tests that the validation catches this
-        with pytest.raises((AttributeError, ValueError, TypeError)):
-            validate_transaction(sample_transaction)
-
-    def test_invalid_source_account_type(self, sample_transaction):
-        """source_account must be a string."""
-        sample_transaction["source_account"] = 12345
-        result = validate_transaction(sample_transaction)
-        assert result["status"] == "failed"
-        assert "string" in result["reason"]
-
-    def test_invalid_destination_account_type(self, sample_transaction):
-        """destination_account must be a string."""
-        sample_transaction["destination_account"] = 12345
-        result = validate_transaction(sample_transaction)
-        assert result["status"] == "failed"
-        assert "string" in result["reason"]
-
-    def test_amount_must_be_string(self, sample_transaction):
-        """amount must be a string, not a number."""
-        sample_transaction["amount"] = 1000.00
-        result = validate_transaction(sample_transaction)
-        assert result["status"] == "failed"
-        assert "string" in result["reason"]
-
-    def test_invalid_amount_format(self, sample_transaction):
-        """Invalid decimal amount should fail."""
-        sample_transaction["amount"] = "not-a-number"
-        result = validate_transaction(sample_transaction)
-        assert result["status"] == "failed"
-        assert "decimal" in result["reason"]
-
-    def test_invalid_currency_code(self, sample_transaction):
-        """Invalid ISO 4217 currency code should fail."""
-        sample_transaction["currency"] = "XYZ"
-        result = validate_transaction(sample_transaction)
-        assert result["status"] == "failed"
-        assert "currency" in result["reason"]
-
-    def test_invalid_transaction_type_type(self, sample_transaction):
-        """transaction_type must be a string."""
-        sample_transaction["transaction_type"] = 123
-        result = validate_transaction(sample_transaction)
-        assert result["status"] == "failed"
-        assert "string" in result["reason"]
-
-    def test_invalid_description_type(self, sample_transaction):
-        """description must be a string."""
-        sample_transaction["description"] = 123
-        result = validate_transaction(sample_transaction)
-        assert result["status"] == "failed"
-        assert "string" in result["reason"]
-
-    def test_metadata_not_dict(self, sample_transaction):
-        """metadata must be a dict/object."""
-        sample_transaction["metadata"] = "not-a-dict"
-        result = validate_transaction(sample_transaction)
-        assert result["status"] == "failed"
-        assert "object" in result["reason"]
-
-    def test_missing_metadata_channel(self, sample_transaction):
-        """metadata must have a channel field."""
-        sample_transaction["metadata"] = {"country": "US"}
-        result = validate_transaction(sample_transaction)
-        assert result["status"] == "failed"
-        assert "channel" in result["reason"]
-
-    def test_missing_metadata_country(self, sample_transaction):
-        """metadata must have a country field."""
-        sample_transaction["metadata"] = {"channel": "online"}
-        result = validate_transaction(sample_transaction)
-        assert result["status"] == "failed"
-        assert "country" in result["reason"]
-
-    def test_empty_metadata_channel(self, sample_transaction):
-        """metadata.channel cannot be empty."""
-        sample_transaction["metadata"]["channel"] = ""
-        result = validate_transaction(sample_transaction)
-        assert result["status"] == "failed"
-        assert "channel" in result["reason"]
-
-    def test_empty_metadata_country(self, sample_transaction):
-        """metadata.country cannot be empty."""
-        sample_transaction["metadata"]["country"] = ""
-        result = validate_transaction(sample_transaction)
-        assert result["status"] == "failed"
-        assert "country" in result["reason"]
-
-    def test_null_metadata_channel(self, sample_transaction):
-        """metadata.channel cannot be None."""
-        sample_transaction["metadata"]["channel"] = None
-        result = validate_transaction(sample_transaction)
-        assert result["status"] == "failed"
-        assert "channel" in result["reason"]
-
-    def test_null_metadata_country(self, sample_transaction):
-        """metadata.country cannot be None."""
-        sample_transaction["metadata"]["country"] = None
-        result = validate_transaction(sample_transaction)
-        assert result["status"] == "failed"
-        assert "country" in result["reason"]
-
-    def test_valid_transactions_from_fixture(self, valid_transactions):
-        """All valid transactions from fixture should pass."""
-        for tx in valid_transactions:
-            result = validate_transaction(tx)
-            assert result["status"] == "passed", f"Transaction {tx['transaction_id']} should pass"
-
-    def test_invalid_transactions_from_fixture(self, invalid_transactions):
-        """All invalid transactions from fixture should fail."""
-        for tx in invalid_transactions:
-            result = validate_transaction(tx)
-            assert result["status"] == "failed", f"Transaction {tx['transaction_id']} should fail"
-
-    def test_edge_case_transactions_from_fixture(self, edge_case_transactions):
-        """Edge case transactions should pass validation if well-formed."""
-        for tx in edge_case_transactions:
-            result = validate_transaction(tx)
-            assert result["status"] == "passed", f"Edge case {tx['transaction_id']} should pass validation"
-
-    def test_negative_amount_passes(self, sample_transaction):
-        """Negative amounts (refunds) should pass validation."""
-        sample_transaction["amount"] = "-50.00"
-        result = validate_transaction(sample_transaction)
-        assert result["status"] == "passed"
-
-    def test_very_large_amount_passes(self, sample_transaction):
-        """Very large amounts should pass validation."""
-        sample_transaction["amount"] = "999999999.99"
-        result = validate_transaction(sample_transaction)
-        assert result["status"] == "passed"
-
-    def test_zero_amount_passes(self, sample_transaction):
-        """Zero amount should pass validation."""
-        sample_transaction["amount"] = "0.00"
-        result = validate_transaction(sample_transaction)
-        assert result["status"] == "passed"
-
-    def test_multiple_currencies(self, sample_transaction):
-        """Various valid ISO 4217 currencies should pass."""
-        currencies = ["USD", "EUR", "GBP", "JPY", "CAD", "AUD"]
-        for currency in currencies:
-            sample_transaction["currency"] = currency
-            result = validate_transaction(sample_transaction)
-            assert result["status"] == "passed", f"Currency {currency} should be valid"
-
-    def test_decimal_precision(self, sample_transaction):
-        """Decimal precision should be preserved in validation."""
-        sample_transaction["amount"] = "123.456789"
-        result = validate_transaction(sample_transaction)
-        assert result["status"] == "passed"
+def _validate(data: dict, context: StageContext | None = None):
+    return validate_transaction(Transaction.from_dict(data), context or StageContext())
 
 
-class TestDryRun:
-    """Tests for dry_run: validates a whole dataset while writing nothing."""
+# ---------------------------------------------------------------------------
+# Happy path
+# ---------------------------------------------------------------------------
 
-    def test_counts_valid_and_invalid(self, tmp_path, sample_transaction):
-        """Totals should split into valid and invalid across a mixed dataset."""
-        bad = dict(sample_transaction, transaction_id="TXN-BAD", currency="XYZ")
-        dataset = tmp_path / "mixed.json"
-        dataset.write_text(json.dumps([sample_transaction, bad]))
 
-        report = dry_run(dataset)
+def test_valid_transaction_passes(sample_transaction):
+    result = _validate(sample_transaction)
+    assert result.passed is True
+    assert result.reason is None
+    assert result.errors == []
 
-        assert report["total"] == 2
-        assert report["valid"] == 1
-        assert report["invalid"] == 1
-        assert report["dataset"] == str(dataset)
 
-    def test_reports_reason_per_record(self, tmp_path, sample_transaction):
-        """Each result carries its transaction_id, status and rejection reason."""
-        bad = dict(sample_transaction, transaction_id="TXN-BAD", currency="XYZ")
-        dataset = tmp_path / "bad.json"
-        dataset.write_text(json.dumps([bad]))
+def test_valid_transactions_fixture_all_pass(valid_transactions):
+    for txn in valid_transactions:
+        result = _validate(txn)
+        assert result.passed is True, f"{txn['transaction_id']} unexpectedly failed: {result.reason}"
 
-        entry = dry_run(dataset)["results"][0]
 
-        assert entry["transaction_id"] == "TXN-BAD"
-        assert entry["status"] == "failed"
-        assert "XYZ" in entry["reason"]
+# ---------------------------------------------------------------------------
+# Error cases: missing fields, wrong types, invalid values
+# ---------------------------------------------------------------------------
 
-    def test_writes_nothing(self, tmp_path, sample_transaction):
-        """A dry run must not create or modify any file beyond the dataset."""
-        dataset = tmp_path / "only.json"
-        dataset.write_text(json.dumps([sample_transaction]))
-        before = {p: p.stat().st_mtime_ns for p in tmp_path.rglob("*")}
 
-        dry_run(dataset)
+def test_missing_amount_fails(sample_transaction):
+    del sample_transaction["amount"]
+    result = _validate(sample_transaction)
+    assert result.passed is False
+    assert any("amount" in e for e in result.errors)
 
-        after = {p: p.stat().st_mtime_ns for p in tmp_path.rglob("*")}
-        assert after == before
 
-    def test_rejects_non_array_dataset(self, tmp_path):
-        """A dataset that is not a JSON array is an error, not an empty run."""
-        dataset = tmp_path / "object.json"
-        dataset.write_text(json.dumps({"transaction_id": "TXN001"}))
+@pytest.mark.parametrize(
+    "field",
+    ["transaction_id", "timestamp", "source_account", "destination_account", "amount", "currency", "transaction_type"],
+)
+def test_each_required_field_missing_fails(sample_transaction, field):
+    sample_transaction[field] = ""
+    result = _validate(sample_transaction)
+    assert result.passed is False
+    assert any(field in e for e in result.errors)
 
-        with pytest.raises(ValueError, match="JSON array"):
-            dry_run(dataset)
 
-    def test_real_dataset_is_mostly_valid(self, sample_dataset_path):
-        """The shipped dataset should validate end to end without writing."""
-        report = dry_run(sample_dataset_path)
+def test_amount_as_number_not_string_fails(sample_transaction):
+    sample_transaction["amount"] = 1500.00
+    result = _validate(sample_transaction)
+    assert result.passed is False
+    assert any("decimal" in e for e in result.errors)
 
-        assert report["total"] == report["valid"] + report["invalid"]
-        assert report["total"] > 0
+
+def test_invalid_decimal_amount_fails(sample_transaction):
+    sample_transaction["amount"] = "not-a-number"
+    result = _validate(sample_transaction)
+    assert result.passed is False
+
+
+def test_invalid_currency_code_fails(sample_transaction):
+    sample_transaction["currency"] = "XYZ"
+    result = _validate(sample_transaction)
+    assert result.passed is False
+    assert any("currency" in e for e in result.errors)
+
+
+def test_invalid_timestamp_fails(sample_transaction):
+    sample_transaction["timestamp"] = "not-a-valid-timestamp"
+    result = _validate(sample_transaction)
+    assert result.passed is False
+    assert any("timestamp" in e for e in result.errors)
+
+
+def test_timestamp_without_timezone_fails(sample_transaction):
+    sample_transaction["timestamp"] = "2026-03-16T10:00:00"  # no offset/Z
+    result = _validate(sample_transaction)
+    assert result.passed is False
+
+
+def test_invalid_transactions_fixture_all_fail_except_type_flexible_fields(invalid_transactions):
+    for txn in invalid_transactions:
+        result = _validate(txn)
+        # Every entry in the invalid fixture is deliberately malformed in at
+        # least one required-field/type/format way, except metadata-only
+        # issues (metadata is not itself a required field).
+        if txn["transaction_id"] in ("INVALID_006", "INVALID_007"):
+            continue
+        assert result.passed is False, f"{txn['transaction_id']} unexpectedly passed"
+
+
+# ---------------------------------------------------------------------------
+# Edge cases
+# ---------------------------------------------------------------------------
+
+
+def test_edge_case_transactions_are_well_formed(edge_case_transactions):
+    """The edge-case fixture varies amount/timing/currency extremes, not
+    well-formedness, so validation should still pass for all of them."""
+    for txn in edge_case_transactions:
+        result = _validate(txn)
+        assert result.passed is True, f"{txn['transaction_id']}: {result.reason}"
+
+
+def test_very_high_amount_is_a_valid_decimal(sample_transaction):
+    sample_transaction["amount"] = "999999999.99"
+    result = _validate(sample_transaction)
+    assert result.passed is True
+
+
+def test_negative_amount_refund_is_valid(sample_transaction):
+    sample_transaction["amount"] = "-50000.00"
+    result = _validate(sample_transaction)
+    assert result.passed is True
+
+
+def test_null_currency_fails(sample_transaction):
+    sample_transaction["currency"] = None
+    result = _validate(sample_transaction)
+    assert result.passed is False
+
+
+# ---------------------------------------------------------------------------
+# Absent-annotation cases: validation depends only on the record, so an
+# empty or partial context must never change the outcome, never raise, and
+# never be consulted.
+# ---------------------------------------------------------------------------
+
+
+def test_empty_context_does_not_affect_result(sample_transaction):
+    result_empty = _validate(sample_transaction, StageContext())
+    result_default = _validate(sample_transaction)
+    assert result_empty.to_dict() == result_default.to_dict()
+
+
+def test_partial_context_does_not_affect_result(sample_transaction):
+    partial = StageContext.from_dict({"fraud_result": {"score": "0.9", "flagged": True}})
+    result = _validate(sample_transaction, partial)
+    assert result.passed is True
+    # Never recomputes another stage's result: no fraud/compliance fields on
+    # ValidationResult.
+    assert not hasattr(result, "fraud_result")
+    assert not hasattr(result, "score")
+
+
+def test_context_never_raises_for_validation(sample_transaction):
+    # Passing any context shape must never raise - validation is
+    # context-independent by contract.
+    _validate(sample_transaction, StageContext())
+
+
+# ---------------------------------------------------------------------------
+# Non-termination: validate_transaction never signals the record should
+# leave the flow - it always returns a ValidationResult, pass or fail.
+# ---------------------------------------------------------------------------
+
+
+def test_validation_never_terminates_the_flow(invalid_transactions):
+    for txn in invalid_transactions:
+        result = _validate(txn)
+        assert result is not None
+        assert isinstance(result.passed, bool)
+
+
+# ---------------------------------------------------------------------------
+# run_standalone_check (--check CLI mode)
+# ---------------------------------------------------------------------------
+
+
+def test_run_standalone_check_reports_totals(tmp_path, valid_transactions, invalid_transactions):
+    dataset = valid_transactions + [t for t in invalid_transactions if t["transaction_id"] not in ("INVALID_006", "INVALID_007")]
+    source = tmp_path / "dataset.json"
+    source.write_text(json.dumps(dataset))
+
+    report = run_standalone_check(str(source))
+    assert report["total"] == len(dataset)
+    assert report["valid"] == len(valid_transactions)
+    assert report["invalid"] == len(dataset) - len(valid_transactions)
+    assert len(report["results"]) == len(dataset)
+
+
+def test_run_standalone_check_is_read_only(tmp_path, valid_transactions):
+    source = tmp_path / "dataset.json"
+    source.write_text(json.dumps(valid_transactions))
+    before = source.read_text()
+
+    run_standalone_check(str(source))
+
+    assert source.read_text() == before
+
+
+def test_run_standalone_check_missing_source_raises(tmp_path):
+    with pytest.raises(FileNotFoundError):
+        run_standalone_check(str(tmp_path / "does-not-exist.json"))

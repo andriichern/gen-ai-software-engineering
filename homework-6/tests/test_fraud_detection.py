@@ -1,243 +1,175 @@
-"""Unit tests for the Fraud Detection stage."""
+"""Unit tests for pipeline/fraud_detection.py."""
+from __future__ import annotations
+
 from decimal import Decimal
 
 import pytest
 
-from pipeline.fraud_detection import _usd_equivalent, score_transaction
+from lib.exchange_rates import ExchangeRates
+from lib.models import StageContext, Transaction
+from pipeline.fraud_detection import score_transaction
 
 
-class TestUsdEquivalent:
-    """Tests for _usd_equivalent helper function."""
-
-    def test_usd_currency_returns_same_amount(self, sample_exchange_rates):
-        """USD amounts should return the same value."""
-        result = _usd_equivalent(Decimal("1000"), "USD", sample_exchange_rates)
-        assert result == Decimal("1000")
-
-    def test_convert_eur_to_usd(self, sample_exchange_rates):
-        """EUR to USD conversion should work."""
-        eur_amount = Decimal("1000")
-        result = _usd_equivalent(eur_amount, "EUR", sample_exchange_rates)
-        # 1000 EUR / 0.92 = 1086.957...
-        assert result == eur_amount / Decimal("0.92")
-
-    def test_convert_gbp_to_usd(self, sample_exchange_rates):
-        """GBP to USD conversion should work."""
-        gbp_amount = Decimal("500")
-        result = _usd_equivalent(gbp_amount, "GBP", sample_exchange_rates)
-        # 500 GBP / 0.79
-        assert result == gbp_amount / Decimal("0.79")
-
-    def test_missing_exchange_rate_raises_error(self, sample_exchange_rates):
-        """Missing exchange rate should raise ValueError."""
-        with pytest.raises(ValueError, match="no exchange rate available"):
-            _usd_equivalent(Decimal("1000"), "AUD", sample_exchange_rates)
-
-    def test_zero_amount_returns_zero(self, sample_exchange_rates):
-        """Zero amount should return zero."""
-        result = _usd_equivalent(Decimal("0"), "EUR", sample_exchange_rates)
-        assert result == Decimal("0")
-
-    def test_very_large_amount(self, sample_exchange_rates):
-        """Very large amounts should convert correctly."""
-        large = Decimal("999999999.99")
-        result = _usd_equivalent(large, "EUR", sample_exchange_rates)
-        assert result == large / Decimal("0.92")
+def _score(data: dict, rates: ExchangeRates, context: StageContext | None = None):
+    return score_transaction(Transaction.from_dict(data), context or StageContext(), rates)
 
 
-class TestScoreTransaction:
-    """Tests for score_transaction function."""
+# ---------------------------------------------------------------------------
+# Happy path
+# ---------------------------------------------------------------------------
 
-    def test_low_value_domestic_normal_hours(self, sample_transaction, sample_exchange_rates):
-        """Low value, domestic, normal hours should have low fraud score."""
-        sample_transaction["amount"] = "1000.00"
-        sample_transaction["timestamp"] = "2026-03-16T12:00:00Z"
-        sample_transaction["metadata"]["country"] = "GB"
 
-        result = score_transaction(sample_transaction, sample_exchange_rates)
+def test_low_value_domestic_daytime_is_not_flagged(fake_rates, sample_transaction):
+    sample_transaction["amount"] = "50.00"
+    sample_transaction["metadata"]["country"] = "GB"
+    sample_transaction["timestamp"] = "2026-03-16T12:00:00Z"
+    result = _score(sample_transaction, fake_rates)
+    assert result.flagged is False
+    assert Decimal(result.score) < Decimal("0.50")
 
-        assert "score" in result
-        score = Decimal(result["score"])
-        assert score < Decimal("0.50")
-        assert not result["factors"]["high_value_amount"]
-        assert not result["factors"]["cross_border_mismatch"]
-        assert not result["factors"]["unusual_hour_timing"]
 
-    def test_high_value_adds_score(self, sample_transaction, sample_exchange_rates):
-        """High value transaction should add HIGH_VALUE_WEIGHT to score."""
-        sample_transaction["amount"] = "20000.00"
-        sample_transaction["timestamp"] = "2026-03-16T12:00:00Z"
-        sample_transaction["metadata"]["country"] = "GB"
+def test_all_three_factors_triggered_flags_transaction(fake_rates, sample_transaction):
+    sample_transaction["amount"] = "20000.00"  # well above 10k USD threshold
+    sample_transaction["currency"] = "USD"
+    sample_transaction["metadata"]["country"] = "FR"  # cross-border vs GB baseline
+    sample_transaction["timestamp"] = "2026-03-16T02:00:00Z"  # outside 06:00-22:00 window
+    result = _score(sample_transaction, fake_rates)
+    assert result.flagged is True
+    assert Decimal(result.score) == Decimal("1.00")
+    assert result.factors["high_value_amount"]["triggered"] is True
+    assert result.factors["cross_border_mismatch"]["triggered"] is True
+    assert result.factors["unusual_hour_timing"]["triggered"] is True
 
-        result = score_transaction(sample_transaction, sample_exchange_rates)
 
-        assert result["factors"]["high_value_amount"]
-        score = Decimal(result["score"])
-        assert score >= Decimal("0.50")
+def test_score_is_capped_at_one(fake_rates, sample_transaction):
+    sample_transaction["amount"] = "999999999.99"
+    sample_transaction["metadata"]["country"] = "FR"
+    sample_transaction["timestamp"] = "2026-03-16T02:00:00Z"
+    result = _score(sample_transaction, fake_rates)
+    assert Decimal(result.score) <= Decimal("1.00")
 
-    def test_cross_border_adds_score(self, sample_transaction, sample_exchange_rates):
-        """Cross-border transaction should add CROSS_BORDER_WEIGHT to score."""
-        sample_transaction["amount"] = "1000.00"
-        sample_transaction["timestamp"] = "2026-03-16T12:00:00Z"
-        sample_transaction["metadata"]["country"] = "FR"
 
-        result = score_transaction(sample_transaction, sample_exchange_rates)
+def test_score_never_rejects_only_flags(fake_rates, sample_transaction):
+    """Fraud Detection only flags for review; it never signals rejection."""
+    result = _score(sample_transaction, fake_rates)
+    assert not hasattr(result, "status")
+    assert isinstance(result.flagged, bool)
 
-        assert result["factors"]["cross_border_mismatch"]
-        score = Decimal(result["score"])
-        assert score >= Decimal("0.30")
 
-    def test_unusual_hour_adds_score(self, sample_transaction, sample_exchange_rates):
-        """Transaction outside 6am-10pm UTC should add UNUSUAL_HOUR_WEIGHT."""
-        sample_transaction["amount"] = "1000.00"
-        sample_transaction["timestamp"] = "2026-03-16T03:00:00Z"  # 3am UTC
-        sample_transaction["metadata"]["country"] = "GB"
+# ---------------------------------------------------------------------------
+# Error / edge cases: not-applicable factors, not raised exceptions
+# ---------------------------------------------------------------------------
 
-        result = score_transaction(sample_transaction, sample_exchange_rates)
 
-        assert result["factors"]["unusual_hour_timing"]
-        score = Decimal(result["score"])
-        assert score >= Decimal("0.20")
+def test_invalid_amount_marks_high_value_factor_not_applicable(fake_rates, sample_transaction):
+    sample_transaction["amount"] = "not-a-number"
+    result = _score(sample_transaction, fake_rates)
+    assert result.factors["high_value_amount"]["applicable"] is False
+    assert "high_value_amount" in " ".join(result.missing)
 
-    def test_multiple_risk_factors_accumulate(self, sample_transaction, sample_exchange_rates):
-        """Multiple risk factors should accumulate in score."""
-        sample_transaction["amount"] = "25000.00"  # high value
-        sample_transaction["timestamp"] = "2026-03-16T05:00:00Z"  # unusual hour
-        sample_transaction["metadata"]["country"] = "DE"  # cross-border
 
-        result = score_transaction(sample_transaction, sample_exchange_rates)
+def test_unknown_currency_marks_high_value_factor_not_applicable(fake_rates, sample_transaction):
+    sample_transaction["currency"] = "JPY"  # not in fake_rates
+    result = _score(sample_transaction, fake_rates)
+    assert result.factors["high_value_amount"]["applicable"] is False
 
-        assert result["factors"]["high_value_amount"]
-        assert result["factors"]["cross_border_mismatch"]
-        assert result["factors"]["unusual_hour_timing"]
 
-        score = Decimal(result["score"])
-        # 0.50 + 0.30 + 0.20 = 1.00 (capped)
-        assert score == Decimal("1.00")
+def test_missing_country_marks_cross_border_factor_not_applicable(fake_rates, sample_transaction):
+    del sample_transaction["metadata"]["country"]
+    result = _score(sample_transaction, fake_rates)
+    assert result.factors["cross_border_mismatch"]["applicable"] is False
+    assert "cross_border_mismatch" in " ".join(result.missing)
 
-    def test_score_capped_at_one(self, sample_transaction, sample_exchange_rates):
-        """Score should never exceed 1.00."""
-        sample_transaction["amount"] = "999999999.99"
-        sample_transaction["timestamp"] = "2026-03-16T03:00:00Z"
-        sample_transaction["metadata"]["country"] = "FR"
 
-        result = score_transaction(sample_transaction, sample_exchange_rates)
+def test_invalid_timestamp_marks_unusual_hour_factor_not_applicable(fake_rates, sample_transaction):
+    sample_transaction["timestamp"] = "not-a-timestamp"
+    result = _score(sample_transaction, fake_rates)
+    assert result.factors["unusual_hour_timing"]["applicable"] is False
+    assert "unusual_hour_timing" in " ".join(result.missing)
 
-        score = Decimal(result["score"])
-        assert score <= Decimal("1.00")
 
-    def test_flagged_when_score_above_threshold(self, sample_transaction, sample_exchange_rates):
-        """Transaction should be flagged when score >= 0.50."""
-        sample_transaction["amount"] = "25000.00"
-        sample_transaction["timestamp"] = "2026-03-16T12:00:00Z"
-        sample_transaction["metadata"]["country"] = "GB"
+def test_all_factors_not_applicable_yields_zero_score_not_flagged(fake_rates, sample_transaction):
+    sample_transaction["amount"] = "bad"
+    sample_transaction["timestamp"] = "bad"
+    del sample_transaction["metadata"]["country"]
+    result = _score(sample_transaction, fake_rates)
+    assert result.score == "0"
+    assert result.flagged is False
+    assert len(result.missing) == 3
 
-        result = score_transaction(sample_transaction, sample_exchange_rates)
 
-        assert result["flagged"] is True
+def test_extreme_negative_amount_uses_absolute_value(fake_rates, sample_transaction):
+    sample_transaction["amount"] = "-50000.00"
+    sample_transaction["currency"] = "USD"
+    result = _score(sample_transaction, fake_rates)
+    assert result.factors["high_value_amount"]["applicable"] is True
+    assert result.factors["high_value_amount"]["triggered"] is True
 
-    def test_not_flagged_when_score_below_threshold(self, sample_transaction, sample_exchange_rates):
-        """Transaction should not be flagged when score < 0.50."""
-        sample_transaction["amount"] = "1000.00"
-        sample_transaction["timestamp"] = "2026-03-16T12:00:00Z"
-        sample_transaction["metadata"]["country"] = "GB"
 
-        result = score_transaction(sample_transaction, sample_exchange_rates)
+# ---------------------------------------------------------------------------
+# Boundary: exactly at the high-value threshold
+# ---------------------------------------------------------------------------
 
-        assert result["flagged"] is False
 
-    def test_negative_amount_treated_as_positive_for_scoring(self, sample_transaction, sample_exchange_rates):
-        """Negative amounts (refunds) should be scored on absolute value."""
-        sample_transaction["amount"] = "-25000.00"
-        sample_transaction["timestamp"] = "2026-03-16T12:00:00Z"
-        sample_transaction["metadata"]["country"] = "GB"
+def test_exactly_at_high_value_threshold_triggers(fake_rates, sample_transaction):
+    sample_transaction["amount"] = "10000.00"
+    sample_transaction["currency"] = "USD"
+    result = _score(sample_transaction, fake_rates)
+    assert result.factors["high_value_amount"]["triggered"] is True
 
-        result = score_transaction(sample_transaction, sample_exchange_rates)
 
-        assert result["factors"]["high_value_amount"]
+def test_just_below_high_value_threshold_does_not_trigger(fake_rates, sample_transaction):
+    sample_transaction["amount"] = "9999.99"
+    sample_transaction["currency"] = "USD"
+    result = _score(sample_transaction, fake_rates)
+    assert result.factors["high_value_amount"]["triggered"] is False
 
-    def test_missing_country_not_cross_border(self, sample_transaction, sample_exchange_rates):
-        """Missing country in metadata should not be treated as cross-border."""
-        sample_transaction["amount"] = "1000.00"
-        sample_transaction["timestamp"] = "2026-03-16T12:00:00Z"
-        sample_transaction["metadata"]["country"] = None
 
-        result = score_transaction(sample_transaction, sample_exchange_rates)
+def test_hour_window_boundary_start_is_within_window(fake_rates, sample_transaction):
+    sample_transaction["timestamp"] = "2026-03-16T06:00:00Z"
+    result = _score(sample_transaction, fake_rates)
+    assert result.factors["unusual_hour_timing"]["triggered"] is False
 
-        assert not result["factors"]["cross_border_mismatch"]
 
-    def test_result_has_required_fields(self, sample_transaction, sample_exchange_rates):
-        """Result should have all required fields."""
-        result = score_transaction(sample_transaction, sample_exchange_rates)
+def test_hour_window_boundary_end_is_within_window(fake_rates, sample_transaction):
+    sample_transaction["timestamp"] = "2026-03-16T22:00:00Z"
+    result = _score(sample_transaction, fake_rates)
+    assert result.factors["unusual_hour_timing"]["triggered"] is False
 
-        assert "score" in result
-        assert "factors" in result
-        assert "flagged" in result
-        assert "scored_at" in result
-        assert isinstance(result["score"], str)
-        assert isinstance(result["flagged"], bool)
 
-    def test_eur_transaction_scored_correctly(self, sample_exchange_rates):
-        """EUR transaction should be converted to USD equivalent for scoring."""
-        tx = {
-            "transaction_id": "EUR_TEST",
-            "timestamp": "2026-03-16T12:00:00Z",
-            "source_account": "ACC-001",
-            "destination_account": "ACC-002",
-            "amount": "10000.00",  # EUR, converts to ~10870 USD
-            "currency": "EUR",
-            "transaction_type": "transfer",
-            "description": "Test",
-            "metadata": {"channel": "online", "country": "DE"}
-        }
+def test_just_after_window_end_is_unusual(fake_rates, sample_transaction):
+    sample_transaction["timestamp"] = "2026-03-16T22:00:01Z"
+    result = _score(sample_transaction, fake_rates)
+    assert result.factors["unusual_hour_timing"]["triggered"] is True
 
-        result = score_transaction(tx, sample_exchange_rates)
 
-        # Should be flagged as high value when converted
-        assert result["factors"]["high_value_amount"]
+# ---------------------------------------------------------------------------
+# Absent-annotation: fraud detection does not depend on any prior stage, so
+# any context (empty or partial) must produce the same, well-defined result
+# and never raise.
+# ---------------------------------------------------------------------------
 
-    def test_boundary_high_value_threshold(self, sample_transaction, sample_exchange_rates):
-        """Test boundary at HIGH_VALUE_USD_THRESHOLD (10000)."""
-        # Just below threshold
-        sample_transaction["amount"] = "9999.99"
-        sample_transaction["metadata"]["country"] = "GB"
-        result = score_transaction(sample_transaction, sample_exchange_rates)
-        assert not result["factors"]["high_value_amount"]
 
-        # Just above threshold
-        sample_transaction["amount"] = "10000.01"
-        result = score_transaction(sample_transaction, sample_exchange_rates)
-        assert result["factors"]["high_value_amount"]
+def test_empty_context_never_raises_and_scores_normally(fake_rates, sample_transaction):
+    result_empty = _score(sample_transaction, fake_rates, StageContext())
+    result_default = _score(sample_transaction, fake_rates)
+    assert result_empty.to_dict() == result_default.to_dict()
 
-    def test_boundary_unusual_hour_start(self, sample_transaction, sample_exchange_rates):
-        """Test boundary at unusual hour start (6am UTC)."""
-        # At 5:59am (unusual)
-        sample_transaction["timestamp"] = "2026-03-16T05:59:00Z"
-        result = score_transaction(sample_transaction, sample_exchange_rates)
-        assert result["factors"]["unusual_hour_timing"]
 
-        # At 6:00am (normal)
-        sample_transaction["timestamp"] = "2026-03-16T06:00:00Z"
-        result = score_transaction(sample_transaction, sample_exchange_rates)
-        assert not result["factors"]["unusual_hour_timing"]
+def test_partial_context_with_unrelated_annotation_does_not_affect_result(fake_rates, sample_transaction):
+    partial = StageContext.from_dict({"validation_result": {"passed": True, "reason": None, "errors": []}})
+    result = _score(sample_transaction, fake_rates, partial)
+    direct = _score(sample_transaction, fake_rates)
+    assert result.to_dict() == direct.to_dict()
 
-    def test_boundary_unusual_hour_end(self, sample_transaction, sample_exchange_rates):
-        """Test boundary at unusual hour end (10pm UTC)."""
-        # At 9:59pm (normal)
-        sample_transaction["timestamp"] = "2026-03-16T21:59:00Z"
-        result = score_transaction(sample_transaction, sample_exchange_rates)
-        assert not result["factors"]["unusual_hour_timing"]
 
-        # At 10:00pm (unusual)
-        sample_transaction["timestamp"] = "2026-03-16T22:00:00Z"
-        result = score_transaction(sample_transaction, sample_exchange_rates)
-        assert result["factors"]["unusual_hour_timing"]
+# ---------------------------------------------------------------------------
+# Non-termination
+# ---------------------------------------------------------------------------
 
-    def test_edge_case_transactions(self, edge_case_transactions, sample_exchange_rates):
-        """Edge case transactions should be scored without errors."""
-        for tx in edge_case_transactions:
-            result = score_transaction(tx, sample_exchange_rates)
-            assert "score" in result
-            assert "flagged" in result
-            score = Decimal(result["score"])
-            assert Decimal("0") <= score <= Decimal("1.00")
+
+def test_fraud_detection_never_terminates_the_flow(fake_rates, edge_case_transactions):
+    for txn in edge_case_transactions:
+        result = _score(txn, fake_rates)
+        assert result is not None
+        assert isinstance(result.flagged, bool)

@@ -1,81 +1,76 @@
 <script>
 	let { report } = $props();
 
-	const COUNT_LABELS = {
-		validated: 'Validated',
-		rejected: 'Rejected',
-		flagged: 'Flagged',
-		held: 'Held',
-		settled: 'Settled'
-	};
+	// Keys are read straight off report.json: total, settled, rejected, held,
+	// incomplete, fraud_flagged, compliance_held, summary, generated_at, errors.
+	const VERDICT_COUNTS = [
+		{ key: 'settled', label: 'Settled', tone: 'success' },
+		{ key: 'held', label: 'Held', tone: 'warning' },
+		{ key: 'rejected', label: 'Rejected', tone: 'danger' },
+		{ key: 'incomplete', label: 'Incomplete', tone: 'muted' }
+	];
 
-	const COUNT_TONE = {
-		validated: 'text',
-		rejected: 'danger',
-		flagged: 'warning',
-		held: 'warning',
-		settled: 'success'
-	};
+	const ATTRIBUTE_COUNTS = [
+		{ key: 'fraud_flagged', label: 'Fraud-flagged', tone: 'warning' },
+		{ key: 'compliance_held', label: 'Compliance holds', tone: 'warning' }
+	];
 
-	let maxBucket = $derived(Math.max(1, ...Object.values(report.risk_score_distribution ?? {})));
+	let errors = $derived(report.errors ?? []);
 </script>
 
 <div class="flex flex-col gap-4">
 	<div class="rounded-lg border border-border bg-surface-raised p-4">
 		<h2 class="mb-1 text-sm font-medium text-muted">Run summary</h2>
-		<p class="text-xs text-muted">
-			{report.total_records} transactions · generated {new Date(
-				report.generated_at
-			).toLocaleString()}
+		<p class="text-sm text-text">{report.summary}</p>
+		<p class="mt-1 text-xs text-muted">
+			{report.total} transactions · generated {new Date(report.generated_at).toLocaleString()}
 		</p>
 	</div>
 
-	<div class="grid grid-cols-2 gap-3 sm:grid-cols-5">
-		{#each Object.entries(report.counts ?? {}) as [key, value]}
-			<div class="rounded-lg border border-border bg-surface-raised p-4">
-				<p class="text-xs text-muted">{COUNT_LABELS[key] ?? key}</p>
-				<p
-					class="mt-1 text-2xl font-semibold"
-					class:text-text={COUNT_TONE[key] === 'text'}
-					class:text-danger={COUNT_TONE[key] === 'danger'}
-					class:text-warning={COUNT_TONE[key] === 'warning'}
-					class:text-success={COUNT_TONE[key] === 'success'}
-				>
-					{value}
-				</p>
-			</div>
-		{/each}
-	</div>
-
 	<div class="rounded-lg border border-border bg-surface-raised p-4">
-		<h2 class="mb-3 text-sm font-medium text-muted">Risk score distribution</h2>
-		<div class="flex flex-col gap-2">
-			{#each Object.entries(report.risk_score_distribution ?? {}) as [bucket, count]}
-				<div class="flex items-center gap-3">
-					<span class="w-24 shrink-0 text-xs text-muted">{bucket}</span>
-					<div class="h-3 flex-1 overflow-hidden rounded-full bg-surface">
-						<div
-							class="h-full rounded-full bg-accent"
-							style="width: {(count / maxBucket) * 100}%"
-						></div>
-					</div>
-					<span class="w-6 shrink-0 text-right text-xs text-muted">{count}</span>
+		<h2 class="mb-3 text-sm font-medium text-muted">Verdicts</h2>
+		<div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+			{#each VERDICT_COUNTS as { key, label, tone }}
+				<div class="rounded-lg border border-border p-3">
+					<p class="text-xs text-muted">{label}</p>
+					<p
+						class="mt-1 text-2xl font-semibold"
+						class:text-success={tone === 'success'}
+						class:text-warning={tone === 'warning'}
+						class:text-danger={tone === 'danger'}
+						class:text-muted={tone === 'muted'}
+					>
+						{report[key] ?? 0}
+					</p>
 				</div>
 			{/each}
 		</div>
 	</div>
 
 	<div class="rounded-lg border border-border bg-surface-raised p-4">
-		<h2 class="mb-3 text-sm font-medium text-muted">Settled value by currency</h2>
-		<table class="w-full text-sm">
-			<tbody>
-				{#each Object.entries(report.total_settled_value_by_currency ?? {}) as [currency, amount]}
-					<tr class="border-t border-border first:border-t-0">
-						<td class="py-1.5 text-muted">{currency}</td>
-						<td class="py-1.5 text-right font-mono text-text">{amount}</td>
-					</tr>
-				{/each}
-			</tbody>
-		</table>
+		<!-- A fraud flag is never a verdict of its own -- it is an attribute of
+		     whichever verdict applies, so it is counted separately from them. -->
+		<h2 class="mb-3 text-sm font-medium text-muted">Attributes</h2>
+		<div class="grid grid-cols-2 gap-3">
+			{#each ATTRIBUTE_COUNTS as { key, label, tone }}
+				<div class="rounded-lg border border-border p-3">
+					<p class="text-xs text-muted">{label}</p>
+					<p class="mt-1 text-2xl font-semibold" class:text-warning={tone === 'warning'}>
+						{report[key] ?? 0}
+					</p>
+				</div>
+			{/each}
+		</div>
 	</div>
+
+	{#if errors.length > 0}
+		<div class="rounded-lg border border-danger/40 bg-danger/10 p-4">
+			<h2 class="mb-2 text-sm font-medium text-danger">Run errors</h2>
+			<ul class="flex flex-col gap-1">
+				{#each errors as error}
+					<li class="text-sm text-danger">{error}</li>
+				{/each}
+			</ul>
+		</div>
+	{/if}
 </div>

@@ -1,13 +1,16 @@
 # Coverage configuration for the transaction-processing pipeline.
 #
 # Scope is the pipeline itself: the five stage modules, the shared library,
-# and the orchestrator. The web UI is deliberately out of scope.
+# the orchestrator, the 5 stage HTTP services, and the API gateway. The web
+# UI is deliberately out of scope.
 
 [run]
 source =
     pipeline
     lib
     orchestrator
+    services
+    gateway
 branch = True
 omit =
     */__pycache__/*

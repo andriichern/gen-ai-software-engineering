@@ -1,1 +1,1 @@
-"""The five pipeline stages: validation, fraud_detection, compliance, settlement, reporting."""
+"""The 5 stages of the transaction processing pipeline."""

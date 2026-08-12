@@ -10,7 +10,7 @@ tools: Read, Write, Bash, AskUserQuestion, mcp__context7__query-docs
 
 Generates a complete, runnable test suite for the homework-6 transaction processing pipeline.
 
-**Scope**: Tests cover pipeline modules, orchestrator, and supporting library code. Excludes UI entirely.
+**Scope**: Tests cover pipeline modules, the orchestrator, supporting library code, the 5 stage HTTP services under `services/`, and the API gateway under `gateway/`. Excludes UI entirely.
 
 **Language-agnostic design**: Detects your stack (Python, Node.js, Go, Java, etc.), looks up framework best practices via context7, generates tests in language-native conventions, runs them, and reports coverage in stack-specific structured format.
 
@@ -42,6 +42,12 @@ This agent **never silently guesses or assumes anything**. When detection is amb
 - `--coverage 90` — Gate: warn if coverage < 90%
 - etc.
 
+**The threshold is a floor, never a target.** `N%` is the minimum required to pass the gate — it is not the amount of coverage to aim for, and stopping as soon as it is cleared is a failure of this agent's job. **Always pursue the maximum coverage achievable, ideally 100%**, and treat anything below that as work remaining rather than a result.
+
+Concretely: after the first measured run, read the per-file report, take the uncovered lines and branches as a worklist, and write tests for them. Repeat until either 100% is reached or every remaining line is genuinely unreachable from a test. Coverage that merely clears the floor is reported as **incomplete**, with the uncovered lines named.
+
+Ordinary code has no exemption. CLI `main()` entry points, argument parsing, `__is_pass__`-style predicates, error branches, fallback paths and retry handlers are all reachable — invoke them with patched arguments, injected failures, or temporary directories. The only legitimate exclusions are the ones the coverage configuration already declares (script entry-point guards, `TYPE_CHECKING` blocks, explicit `pragma: no cover`). **Never add a new exclusion, or widen an existing one, to make a number look better** — that is falsifying the measurement, not improving it. If a line truly cannot be reached, say so explicitly in the final report and explain why.
+
 **Output**:
 1. Generated test files in stack-appropriate directory (`tests/`, `__tests__/`, `spec/`, etc.)
 2. Test configuration file (pytest.ini, jest.config.js, go.mod setup, etc.)
@@ -63,14 +69,16 @@ Apply it as written, including its ambiguity clause: where signals conflict or n
 
 Two notes specific to test generation:
 
-- **The pipeline component is the one that matters here.** Its language and runtime determine the test stack. The MCP server and UI components are also discovered by the shared rules, but this agent generates no tests for them — UI is out of scope entirely (see Scope, above).
+- **The pipeline component is the one that matters most here.** Its language and runtime determine the test stack.
+- **The service layer component is in scope too**, and the shared rules report its HTTP framework, its service directories, and the gateway's stage-order configuration file — carry all of those into Steps 2 and 6b/6c. Its language follows the pipeline's, so it adds no second test stack.
+- The MCP server and UI components are also discovered by the shared rules, but this agent generates no tests for them — UI is out of scope entirely (see Scope, above).
 - **Test tooling is not a separate component.** Derive it from the pipeline component's stack plus any test configuration files already present in the project, exactly as the shared rules state.
 
 Carry the pipeline component's discovered language forward into Step 2.
 
 ### Step 2: Query Context7 for Framework & Tools (Never Assume)
 
-Make **exactly three context7 queries** (use `mcp__context7__query-docs`). Do not use memory or prior knowledge — only what context7 returns.
+Make **exactly four context7 queries** (use `mcp__context7__query-docs`). Do not use memory or prior knowledge — only what context7 returns.
 
 **Query 1: Testing Framework**
 ```
@@ -103,6 +111,17 @@ Parse response for:
 - Integration test subfolder naming (e.g., `integration/`, `e2e/`)
 - Example test file structure
 
+**Query 4: Testing the Service Layer's HTTP Framework**
+
+Use the HTTP framework the service layer component reported in Step 1. Never assume it. Then:
+```
+[http-framework] testing best practices, in-process test client, mocking outbound HTTP calls, asserting request/response payloads
+```
+Parse response for:
+- The framework's **in-process test client** (name and usage) — services and the gateway are exercised through it, **never by binding a real port or spawning a server process**
+- How to mock or stub an outbound HTTP call, so a stage service can be made deliberately unreachable for the retry/skip tests
+- How to assert on JSON request and response bodies
+
 **If context7 lookup fails:**
 - Log the failure
 - Ask user: "Context7 lookup failed for [query]. Should I use common defaults (e.g., pytest for Python, Jest for Node)? (yes/no)"
@@ -131,6 +150,8 @@ For **each file in `pipeline/`** (use `Read` to inspect each):
    - **Happy path**: Valid input → expected output
    - **Error cases**: Missing required fields, invalid data types, boundary values
    - **Edge cases**: Empty data, extreme values (very high/low amounts), malformed JSON, null/None values
+   - **Absent-annotation cases** (required for every stage taking a context): called with an **empty** context, and with a **partial** context missing the annotation that stage would normally key on. Assert the function **returns a valid result recording an explicit not-applicable outcome that names the missing annotation** — and specifically that it does *not* raise, does *not* substitute a default or assumed value, does *not* recompute another stage's result, and does *not* report a clean pass.
+   - **Non-termination**: assert no stage function ever signals that a transaction should leave the flow, whatever its outcome.
 
 3. Test structure (language-specific, from context7):
    - Use test framework syntax from Step 2 (pytest, Jest, Go testing, etc.)
@@ -191,6 +212,47 @@ Create fixtures directory (stack-specific name from Step 2):
    - Recovery from missing input files (should error gracefully)
    - Proper sequencing (no stage runs before predecessors complete)
    - Output files created correctly (status.json, report.json)
+   - **The stage order is fixed and hardcoded**: assert the orchestrator imports no service or gateway module, reads no gateway config file, and exposes no way to change its order — no flag, no environment variable, no argument
+   - **It runs correctly with no service running**, confirming the pipeline is fully usable on its own
+   - **Every transaction traverses every stage**: each stage's `processed` count in `status.json` equals the total record count, and no record reaches `results/` before Reporting
+
+### Step 6a: Generate Order-Independence Tests
+
+**This is the test that proves the pipeline's core design property — treat it as required, not optional.**
+
+Run the 4 reorderable stages (Validation, Fraud Detection, Compliance Check, Settlement) over the same transactions in **several different permutations**, with Reporting always last. Cover at minimum the orchestrator's own order, one with Compliance before Fraud Detection, one with Settlement before Compliance, and one full reversal.
+
+For every permutation, assert:
+- The run completes without raising.
+- Exactly one final record is produced per transaction.
+- Every stage produced an annotation for every transaction — none was skipped or dropped.
+- Every transaction carries a final verdict.
+- Any rule a stage could not evaluate is recorded as an explicit not-applicable outcome naming what was missing.
+
+Then assert the **verdict precedence** directly, as its own tests: a stage that did not run yields `INCOMPLETE` and outranks every other condition; validation failure outranks compliance rejection; compliance rejection outranks hold; hold outranks settled; and a fraud flag alone never produces a verdict of its own but appears as an attribute of whichever verdict applies.
+
+### Step 6b: Generate Stage Service Tests (one per service)
+
+Using the in-process test client from Query 4 — **never a real port, never a spawned server process**. For each of the 5 services under `services/`:
+
+- Valid request → correct response shape, and the result matches what calling the stage's core function directly returns (proving the service wraps rather than reimplements).
+- **Empty and partial context** → a valid response with a not-applicable outcome, never an error status.
+- Malformed request body → a clean error response, not a crash.
+- **Statelessness**: record the filesystem state before, issue requests, assert nothing was created, modified, or deleted anywhere — most importantly nowhere in `shared/`.
+- Assert by inspection that the service references no other service and holds no successor URL or ordering.
+
+### Step 6c: Generate Gateway Tests
+
+Also via the in-process test client:
+
+- **Config parsing**: a valid config yields the expected stage order; an invalid or unknown stage name is rejected clearly.
+- **Order is honored**: with a given config, assert the services are called in exactly that order, and that Reporting is called last regardless of the config's contents.
+- **Retry-then-skip**: with a stage service mocked to be unreachable or to error, assert the gateway retries **3 times**, then skips that stage and continues the chain, records it as not-run, and returns the transaction with an `INCOMPLETE` verdict. Assert the whole request does **not** fail over one dead stage, and that no result is fabricated for the skipped stage.
+- **End-to-end submission, both endpoints**: the single endpoint accepts one transaction object and returns one result object; the array endpoint accepts an array and returns an array of the same shape, one entry per submitted transaction, in submission order. Assert each response carries the transaction's accumulated stage results and final verdict.
+- **Batch equals single**: submit a transaction alone and inside a batch, and assert the two results agree on every **deterministic** field — the verdict, the fraud flag, the reason, which stages ran, and each stage's substantive outcome. **Exclude per-call values from the comparison**: generated identifiers and timestamps (a settlement reference, a settlement timestamp, any UUID) differ between any two invocations by design, so asserting whole-object equality produces a test that fails for the wrong reason. Compare with those fields stripped, and say so in the test's name or a comment. Assert also that the batch response carries **no** aggregate summary or run-level counts, and that one transaction's outcome is unaffected by the others in its batch.
+- **Malformed batch input**: an empty array, and an array containing an invalid record, each produce a clean error or an unaffected remainder — never a crash.
+- **Statelessness**: as with the services — nothing written into `shared/`, nothing read from it.
+- **Reordering changes nothing else**: run the same transactions under two different configured orders and assert both produce a complete result set for every transaction.
 
 ### Step 7: Generate Integration Test (Separate Subfolder)
 
@@ -274,8 +336,8 @@ Script must:
 1. Check prerequisites (language runtime installed, package manager available)
 2. Activate environment if needed (venv for Python, nvm for Node, etc.)
 3. Install/verify test dependencies (pytest, Jest, etc.) — but do NOT auto-install
-4. Run test framework **with coverage enabled**:
-   - Python: `pytest --cov=pipeline --cov=lib --cov-report=json --cov-report=term-missing tests/`
+4. Run test framework **with coverage enabled**, measuring `pipeline/`, `lib/`, the orchestrator, `services/` and `gateway/` (never `ui/`):
+   - Python: `pytest --cov=pipeline --cov=lib --cov=services --cov=gateway --cov-report=json --cov-report=term-missing tests/`
    - Node.js: `npm test -- --coverage`
    - Go: `go test ./... -cover -coverprofile=coverage.out && go tool cover -func=coverage.out`
    - etc.
@@ -300,7 +362,7 @@ python3 -m pip install -q pytest pytest-cov
 
 # Run tests with coverage
 THRESHOLD=${1:---coverage 80}
-python3 -m pytest tests/ --cov=pipeline --cov=lib --cov-report=json --cov-report=term-missing ${THRESHOLD}
+python3 -m pytest tests/ --cov=pipeline --cov=lib --cov=services --cov=gateway --cov-report=json --cov-report=term-missing ${THRESHOLD}
 
 echo "Coverage report saved to coverage_report.json"
 ```
@@ -437,6 +499,11 @@ Timestamp: 2026-08-11T14:30:00Z
 - Still save coverage_report.json
 - Exit with code 1 if coverage < threshold, code 0 if >= threshold
 
+**Coverage at or above threshold but below 100%:**
+- Not a stopping point. Go back to Step 4 and write tests for the uncovered lines, then measure again.
+- Stop only when 100% is reached, or when what remains is genuinely unreachable — in which case name each remaining line and say why.
+- Never close the gap by adding a coverage exclusion.
+
 **Missing dependencies:**
 - If runtime tool missing (pytest, npm, etc.), report it
 - Suggest install command (e.g., `pip install pytest`, `npm install`)
@@ -448,10 +515,16 @@ Timestamp: 2026-08-11T14:30:00Z
 ## Self-Check Before Completion
 
 - [ ] Stack language correctly detected (no guesses; user confirmed if ambiguous)
-- [ ] Context7 queries executed (3 queries, results parsed and used)
+- [ ] Context7 queries executed (4 queries, results parsed and used)
 - [ ] research-notes.md parsed for tool hints (if file exists)
 - [ ] Unit test files generated for every pipeline module
-- [ ] Orchestrator test generated
+- [ ] Absent-annotation tests present for every stage taking a context (empty and partial), asserting a not-applicable outcome rather than a raise, a default, or a clean pass
+- [ ] Order-independence tests present, covering at least 4 permutations with Reporting always last, all completing with one final record and a verdict per transaction
+- [ ] Verdict precedence asserted directly, including that a stage which did not run yields `INCOMPLETE` and that a fraud flag alone is never a verdict
+- [ ] Per-service tests present for all 5 services, via the in-process test client — no real port bound, no server process spawned
+- [ ] Gateway tests present: config parsing, order honored with Reporting always last, retry-3-then-skip against a mocked dead service returning `INCOMPLETE`, both submission endpoints with the response mirroring the request, batch-equals-single, no aggregate in a batch response, and two different orders both producing complete results
+- [ ] Statelessness asserted for services and gateway — nothing written into `shared/`, nothing read from it
+- [ ] Orchestrator test generated, asserting its order is hardcoded, it reads no gateway config, and it runs with no service running
 - [ ] Integration test in separate subfolder (stack-specific naming)
 - [ ] Fixtures in separate files (not inline), derived from sample-transactions.json
 - [ ] Test config file (pytest.ini, jest.config.js, etc.) present and correct
@@ -461,6 +534,8 @@ Timestamp: 2026-08-11T14:30:00Z
 - [ ] `coverage_report.json` written with all required fields
 - [ ] Console report includes: language, framework, coverage %, file-by-file breakdown, generated files list
 - [ ] Coverage >= threshold OR warning issued with flag
+- [ ] **Coverage pushed as close to 100% as reachable** — the uncovered-line worklist was actually worked through, not merely measured, and `main()`/CLI/error/fallback paths were exercised rather than skipped
+- [ ] **No coverage exclusion was added or widened** during this run; any line left uncovered is named in the report with the reason it is unreachable
 - [ ] No silent assumptions made; all ambiguities escalated to user
 
 ---

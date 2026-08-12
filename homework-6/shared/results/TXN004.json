@@ -11,26 +11,59 @@
     "channel": "api",
     "country": "DE"
   },
-  "validation_result": {
-    "status": "passed",
-    "reason": null,
-    "checked_at": "2026-08-10T19:59:03.555058+00:00"
-  },
-  "fraud_result": {
-    "score": "0.50",
-    "factors": {
-      "high_value_amount": false,
-      "cross_border_mismatch": true,
-      "unusual_hour_timing": true
+  "verdict": "HELD",
+  "fraud_flagged": true,
+  "reason": "compliance: flagged by fraud detection; GDPR Art. 22 human review required",
+  "stage_outcomes": {
+    "validation_result": {
+      "passed": true,
+      "reason": null,
+      "errors": []
     },
-    "flagged": true,
-    "scored_at": "2026-08-10T19:59:04.572868+00:00"
-  },
-  "compliance_result": {
-    "status": "held",
-    "reason": "held for human review: fraud score 0.50 flagged this record",
-    "checked_at": "2026-08-10T19:59:05.593232+00:00"
-  },
-  "reason": "held for human review: fraud score 0.50 flagged this record",
-  "final_status": "held"
+    "fraud_result": {
+      "score": "0.5",
+      "flagged": true,
+      "factors": {
+        "high_value_amount": {
+          "triggered": false,
+          "weight": 0.5,
+          "applicable": true,
+          "note": "577.0486959853568122906755855 USD equivalent"
+        },
+        "cross_border_mismatch": {
+          "triggered": true,
+          "weight": 0.3,
+          "applicable": true,
+          "note": "metadata.country=DE vs baseline GB"
+        },
+        "unusual_hour_timing": {
+          "triggered": true,
+          "weight": 0.2,
+          "applicable": true,
+          "note": "transaction time 02:47:00 UTC"
+        }
+      },
+      "missing": []
+    },
+    "compliance_result": {
+      "status": "held",
+      "reason": "flagged by fraud detection; GDPR Art. 22 human review required",
+      "rule_outcomes": {
+        "fraud_conditional_hold": {
+          "outcome": "hold",
+          "note": "flagged by fraud detection; GDPR Art. 22 human review required"
+        },
+        "validation_conditional_audit_completeness": {
+          "outcome": "compliant",
+          "note": "record established well-formed by validation"
+        }
+      }
+    },
+    "settlement_result": {
+      "status": "not_settled",
+      "settlement_reference": null,
+      "settlement_timestamp": null,
+      "reason": "held by compliance: flagged by fraud detection; GDPR Art. 22 human review required"
+    }
+  }
 }

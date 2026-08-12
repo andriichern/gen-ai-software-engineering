@@ -72,6 +72,8 @@ check_module pytest_cov pytest-cov
 check_module coverage coverage
 check_module pycountry pycountry     # ISO 4217 validation in pipeline/validation.py
 check_module requests requests       # live exchange-rate client in lib/exchange_rates.py
+check_module fastapi fastapi         # stage services (services/) and the gateway (gateway/)
+check_module httpx httpx             # gateway's outbound calls; FastAPI TestClient transport
 
 if [ -n "$MISSING" ]; then
     echo -e "${RED}Error: missing required package(s):${NC}$MISSING" >&2
@@ -94,7 +96,8 @@ echo ""
 RAW_COVERAGE_JSON=".coverage_raw.json"
 
 # --cov with no value picks up the [run] source list from .coveragerc
-# (pipeline, lib, orchestrator). The UI is deliberately out of scope.
+# (pipeline, lib, orchestrator, services, gateway). The UI is deliberately
+# out of scope.
 python3 -m pytest tests/ \
     --cov \
     --cov-report="json:${RAW_COVERAGE_JSON}" \
@@ -155,7 +158,7 @@ report = {
     "framework": version,
     "coverage_tool": "coverage.py " + raw.get("meta", {}).get("version", ""),
     "branch_coverage": raw.get("meta", {}).get("branch_coverage", False),
-    "scope": ["pipeline", "lib", "orchestrator"],
+    "scope": ["pipeline", "lib", "orchestrator", "services", "gateway"],
     "excluded": ["ui"],
     "total_coverage_percent": total_pct,
     # Also exposed under coverage.py's native key path so that

@@ -1,103 +1,91 @@
 """Compliance Check stage.
 
-Reads fraud-scored records from shared/output, moves each into
-shared/processing while it is reviewed against the GDPR / Data Protection Act
-2018 baseline, and either clears it on to shared/output for Settlement or
-writes a held/rejected final record directly to shared/results.
+Applies GDPR and Data Protection Act 2018 rules uniformly to every record.
+Per GDPR Article 22, this stage never makes a solely automated decision with
+legal or significant effect — it issues a hold for human review instead of
+an automated rejection. It evaluates two independent rules:
+
+  1. fraud-conditional hold: if Fraud Detection flagged the record, hold it
+     for human review. If fraud_result is absent from context, this rule is
+     recorded as not-applicable, naming the missing annotation.
+  2. validation-conditional audit-completeness: confirms the record was
+     already established well-formed by Validation before treating it as
+     compliant for audit-trail purposes. If validation_result is absent,
+     this rule is recorded as not-applicable, naming the missing annotation.
+
+Neither rule ever fabricates a value for a missing annotation, and absence
+of an annotation is never silently treated as a clean pass.
 """
 from __future__ import annotations
 
 import argparse
 from pathlib import Path
-from typing import Any, Dict
 
-from lib.common import (
-    audit,
-    lean_data,
-    make_envelope,
-    read_json,
-    utc_now_iso,
-    write_envelope,
-    write_final_result,
-)
-from lib.stage_runner import run_stage_loop
-
-STAGE_NAME = "compliance"
+from lib.models import ComplianceResult, StageContext, Transaction
+from lib.stage_runner import run_downstream_stage
 
 
-def check_compliance(record: Dict[str, Any], fraud: Dict[str, Any]) -> Dict[str, Any]:
-    """Applies the GDPR / Data Protection Act 2018 baseline uniformly to every
-    record. Converts a fraud flag into a hold for human review (GDPR Article
-    22) rather than an automated adverse decision. Never carries or logs PII
-    in plaintext -- only transaction_id-scoped facts are used here.
-
-    Returns a ComplianceResult: {"status": "cleared"|"held"|"rejected",
-    "reason": str|None, "checked_at": ISO 8601 UTC}.
-    """
-    if fraud.get("flagged"):
-        return {
-            "status": "held",
-            "reason": f"held for human review: fraud score {fraud.get('score')} flagged this record",
-            "checked_at": utc_now_iso(),
-        }
-    return {"status": "cleared", "reason": None, "checked_at": utc_now_iso()}
-
-def run_stage(input_dir: Path, processing_dir: Path, output_dir: Path, results_dir: Path) -> Dict[str, int]:
-    def process_transaction(transaction_id: str, working: Path) -> bool:
-        envelope = read_json(working)
-        data = envelope["data"]
-
-        fraud_result = data.get("fraud_result", {})
-        # check_compliance's Transaction argument is the accumulated data record
-        # itself (it needs no further original fields beyond what fraud already
-        # gathered), per the "Function to CREATE" signature in specification.md.
-        result = check_compliance(data, fraud_result)
-
-        if result["status"] == "cleared":
-            new_data = lean_data(transaction_id, data["amount"], data["currency"], {
-                "validation_result": data.get("validation_result"),
-                "fraud_result": fraud_result,
-                "compliance_result": result,
-                "country": data.get("country"),
-                "transaction_timestamp": data.get("transaction_timestamp"),
-            })
-            new_envelope = make_envelope(STAGE_NAME, "settlement", new_data)
-            write_envelope(output_dir, transaction_id, new_envelope)
-            audit(STAGE_NAME, transaction_id, "cleared")
-            return True
-
-        write_final_result(
-            results_dir,
-            input_dir,
-            transaction_id,
-            {
-                "validation_result": data.get("validation_result"),
-                "fraud_result": fraud_result,
-                "compliance_result": result,
-                "reason": result["reason"],
-                "final_status": result["status"],
-            },
-        )
-        audit(STAGE_NAME, transaction_id, result["status"])
-        return False
-
-    return run_stage_loop(output_dir, processing_dir, "move", process_transaction)
+def _fraud_conditional_hold_rule(context: StageContext) -> dict:
+    if context.fraud_result is None:
+        return {"outcome": "not_applicable", "note": "fraud_detection annotation missing"}
+    if context.fraud_result.flagged:
+        return {"outcome": "hold", "note": "flagged by fraud detection; GDPR Art. 22 human review required"}
+    return {"outcome": "clear", "note": "no fraud flag present"}
 
 
-def _default_shared_dir() -> Path:
-    return Path("shared")
+def _validation_conditional_audit_rule(context: StageContext) -> dict:
+    if context.validation_result is None:
+        return {"outcome": "not_applicable", "note": "validation annotation missing"}
+    if not context.validation_result.passed:
+        return {"outcome": "incomplete_audit", "note": f"record failed validation: {context.validation_result.reason}"}
+    return {"outcome": "compliant", "note": "record established well-formed by validation"}
+
+
+def check_compliance(record: Transaction, context: StageContext) -> ComplianceResult:
+    fraud_rule = _fraud_conditional_hold_rule(context)
+    audit_rule = _validation_conditional_audit_rule(context)
+
+    rule_outcomes = {
+        "fraud_conditional_hold": fraud_rule,
+        "validation_conditional_audit_completeness": audit_rule,
+    }
+
+    if fraud_rule["outcome"] == "hold":
+        return ComplianceResult(status="held", reason=fraud_rule["note"], rule_outcomes=rule_outcomes)
+
+    return ComplianceResult(status="passed", reason=None, rule_outcomes=rule_outcomes)
+
+
+def _is_pass(result: ComplianceResult) -> bool:
+    return result.status == "passed"
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run the Compliance Check stage standalone.")
-    parser.add_argument("--input-dir", type=Path, default=_default_shared_dir() / "input")
-    parser.add_argument("--output-dir", type=Path, default=_default_shared_dir() / "output")
-    parser.add_argument("--processing-dir", type=Path, default=_default_shared_dir() / "processing")
-    parser.add_argument("--results-dir", type=Path, default=_default_shared_dir() / "results")
+    parser = argparse.ArgumentParser(
+        prog="compliance",
+        description="Compliance Check stage for the transaction processing pipeline.",
+    )
+    parser.add_argument("--input-dir", default="shared/output", help="Directory of upstream messages to read.")
+    parser.add_argument("--output-dir", default="shared/output", help="Directory to write annotated messages to.")
+    parser.add_argument(
+        "--original-dir",
+        default="shared/input",
+        help="Directory holding original transaction records.",
+    )
     args = parser.parse_args()
 
-    tally = run_stage(args.input_dir, args.processing_dir, args.output_dir, args.results_dir)
-    print(f"[{STAGE_NAME}] processed={tally['processed']} passed={tally['passed']} failed={tally['failed']}")
+    tally = run_downstream_stage(
+        stage_name="compliance",
+        next_stage="settlement",
+        result_key="compliance_result",
+        compute_fn=check_compliance,
+        source_dir=Path(args.input_dir),
+        processing_dir=Path(args.output_dir).parent / "processing",
+        output_dir=Path(args.output_dir),
+        input_dir=Path(args.original_dir),
+        is_pass=_is_pass,
+    )
+    print(f"[compliance] done: {tally}")
 
 
 if __name__ == "__main__":

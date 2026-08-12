@@ -2,9 +2,11 @@
 	import { onMount, onDestroy } from 'svelte';
 	import StageProgress from '$lib/components/StageProgress.svelte';
 	import ReportDashboard from '$lib/components/ReportDashboard.svelte';
+	import TransactionResults from '$lib/components/TransactionResults.svelte';
 
 	let status = $state(null);
 	let report = $state(null);
+	let results = $state([]);
 	let runError = $state(null);
 	let triggerError = $state(null);
 	let connectionError = $state(null);
@@ -28,6 +30,7 @@
 		if (isComplete(status)) {
 			stopPolling();
 			await fetchReport();
+			await fetchResults();
 		}
 	}
 
@@ -36,6 +39,20 @@
 			const res = await fetch('/api/report');
 			if (res.ok) {
 				report = await res.json();
+			}
+			connectionError = null;
+		} catch (err) {
+			connectionError = `lost connection to the dev server: ${err.message}`;
+		}
+	}
+
+	// Per-transaction verdicts live in shared/results/, not in report.json.
+	async function fetchResults() {
+		try {
+			const res = await fetch('/api/results');
+			if (res.ok) {
+				const body = await res.json();
+				results = body.results ?? [];
 			}
 			connectionError = null;
 		} catch (err) {
@@ -59,6 +76,7 @@
 		triggerError = null;
 		runError = null;
 		report = null;
+		results = [];
 
 		let res;
 		try {
@@ -134,5 +152,9 @@
 
 	{#if report}
 		<ReportDashboard {report} />
+	{/if}
+
+	{#if results.length > 0}
+		<TransactionResults {results} />
 	{/if}
 </div>

@@ -1,13 +1,15 @@
 {
   "language": "python",
-  "language_version": "3.9.5",
-  "framework": "pytest 8.4.2",
-  "coverage_tool": "coverage.py 7.10.7",
+  "language_version": "3.14.6",
+  "framework": "pytest 9.1.1",
+  "coverage_tool": "coverage.py 7.15.4",
   "branch_coverage": true,
   "scope": [
     "pipeline",
     "lib",
-    "orchestrator"
+    "orchestrator",
+    "services",
+    "gateway"
   ],
   "excluded": [
     "ui"
@@ -16,18 +18,38 @@
   "totals": {
     "percent_covered": 100.0,
     "percent_covered_display": "100",
-    "covered_lines": 528,
-    "num_statements": 528,
+    "covered_lines": 753,
+    "num_statements": 753,
     "missing_lines": 0
   },
   "coverage_threshold": 80.0,
-  "covered_lines": 528,
-  "total_statements": 528,
+  "covered_lines": 753,
+  "total_statements": 753,
   "missing_lines": 0,
   "tests_passed": true,
   "coverage_passed": true,
   "passed": true,
   "files": [
+    {
+      "file": "gateway/__init__.py",
+      "coverage_percent": 100.0,
+      "lines": 0,
+      "covered": 0,
+      "missing_lines": 0,
+      "branches": 0,
+      "partial_branches": 0,
+      "uncovered_line_numbers": []
+    },
+    {
+      "file": "gateway/main.py",
+      "coverage_percent": 100.0,
+      "lines": 57,
+      "covered": 57,
+      "missing_lines": 0,
+      "branches": 8,
+      "partial_branches": 0,
+      "uncovered_line_numbers": []
+    },
     {
       "file": "lib/__init__.py",
       "coverage_percent": 100.0,
@@ -39,30 +61,60 @@
       "uncovered_line_numbers": []
     },
     {
-      "file": "lib/common.py",
+      "file": "lib/dataset.py",
       "coverage_percent": 100.0,
-      "lines": 72,
-      "covered": 72,
+      "lines": 16,
+      "covered": 16,
       "missing_lines": 0,
-      "branches": 10,
+      "branches": 8,
       "partial_branches": 0,
       "uncovered_line_numbers": []
     },
     {
       "file": "lib/exchange_rates.py",
       "coverage_percent": 100.0,
-      "lines": 32,
-      "covered": 32,
+      "lines": 34,
+      "covered": 34,
       "missing_lines": 0,
       "branches": 10,
       "partial_branches": 0,
       "uncovered_line_numbers": []
     },
     {
+      "file": "lib/message_io.py",
+      "coverage_percent": 100.0,
+      "lines": 22,
+      "covered": 22,
+      "missing_lines": 0,
+      "branches": 4,
+      "partial_branches": 0,
+      "uncovered_line_numbers": []
+    },
+    {
+      "file": "lib/models.py",
+      "coverage_percent": 100.0,
+      "lines": 110,
+      "covered": 110,
+      "missing_lines": 0,
+      "branches": 8,
+      "partial_branches": 0,
+      "uncovered_line_numbers": []
+    },
+    {
+      "file": "lib/service_schemas.py",
+      "coverage_percent": 100.0,
+      "lines": 24,
+      "covered": 24,
+      "missing_lines": 0,
+      "branches": 0,
+      "partial_branches": 0,
+      "uncovered_line_numbers": []
+    },
+    {
       "file": "lib/stage_runner.py",
       "coverage_percent": 100.0,
-      "lines": 21,
-      "covered": 21,
+      "lines": 66,
+      "covered": 66,
       "missing_lines": 0,
       "branches": 8,
       "partial_branches": 0,
@@ -71,10 +123,10 @@
     {
       "file": "orchestrator.py",
       "coverage_percent": 100.0,
-      "lines": 83,
-      "covered": 83,
+      "lines": 75,
+      "covered": 75,
       "missing_lines": 0,
-      "branches": 16,
+      "branches": 8,
       "partial_branches": 0,
       "uncovered_line_numbers": []
     },
@@ -91,18 +143,18 @@
     {
       "file": "pipeline/compliance.py",
       "coverage_percent": 100.0,
-      "lines": 38,
-      "covered": 38,
+      "lines": 34,
+      "covered": 34,
       "missing_lines": 0,
-      "branches": 4,
+      "branches": 10,
       "partial_branches": 0,
       "uncovered_line_numbers": []
     },
     {
       "file": "pipeline/fraud_detection.py",
       "coverage_percent": 100.0,
-      "lines": 72,
-      "covered": 72,
+      "lines": 68,
+      "covered": 68,
       "missing_lines": 0,
       "branches": 12,
       "partial_branches": 0,
@@ -111,33 +163,143 @@
     {
       "file": "pipeline/reporting.py",
       "coverage_percent": 100.0,
-      "lines": 75,
-      "covered": 75,
+      "lines": 70,
+      "covered": 70,
       "missing_lines": 0,
-      "branches": 22,
+      "branches": 26,
       "partial_branches": 0,
       "uncovered_line_numbers": []
     },
     {
       "file": "pipeline/settlement.py",
       "coverage_percent": 100.0,
-      "lines": 42,
-      "covered": 42,
+      "lines": 28,
+      "covered": 28,
       "missing_lines": 0,
-      "branches": 2,
+      "branches": 8,
       "partial_branches": 0,
       "uncovered_line_numbers": []
     },
     {
       "file": "pipeline/validation.py",
       "coverage_percent": 100.0,
-      "lines": 93,
-      "covered": 93,
+      "lines": 77,
+      "covered": 77,
       "missing_lines": 0,
-      "branches": 34,
+      "branches": 24,
+      "partial_branches": 0,
+      "uncovered_line_numbers": []
+    },
+    {
+      "file": "services/__init__.py",
+      "coverage_percent": 100.0,
+      "lines": 0,
+      "covered": 0,
+      "missing_lines": 0,
+      "branches": 0,
+      "partial_branches": 0,
+      "uncovered_line_numbers": []
+    },
+    {
+      "file": "services/compliance/__init__.py",
+      "coverage_percent": 100.0,
+      "lines": 0,
+      "covered": 0,
+      "missing_lines": 0,
+      "branches": 0,
+      "partial_branches": 0,
+      "uncovered_line_numbers": []
+    },
+    {
+      "file": "services/compliance/main.py",
+      "coverage_percent": 100.0,
+      "lines": 12,
+      "covered": 12,
+      "missing_lines": 0,
+      "branches": 0,
+      "partial_branches": 0,
+      "uncovered_line_numbers": []
+    },
+    {
+      "file": "services/fraud_detection/__init__.py",
+      "coverage_percent": 100.0,
+      "lines": 0,
+      "covered": 0,
+      "missing_lines": 0,
+      "branches": 0,
+      "partial_branches": 0,
+      "uncovered_line_numbers": []
+    },
+    {
+      "file": "services/fraud_detection/main.py",
+      "coverage_percent": 100.0,
+      "lines": 21,
+      "covered": 21,
+      "missing_lines": 0,
+      "branches": 2,
+      "partial_branches": 0,
+      "uncovered_line_numbers": []
+    },
+    {
+      "file": "services/reporting/__init__.py",
+      "coverage_percent": 100.0,
+      "lines": 0,
+      "covered": 0,
+      "missing_lines": 0,
+      "branches": 0,
+      "partial_branches": 0,
+      "uncovered_line_numbers": []
+    },
+    {
+      "file": "services/reporting/main.py",
+      "coverage_percent": 100.0,
+      "lines": 15,
+      "covered": 15,
+      "missing_lines": 0,
+      "branches": 0,
+      "partial_branches": 0,
+      "uncovered_line_numbers": []
+    },
+    {
+      "file": "services/settlement/__init__.py",
+      "coverage_percent": 100.0,
+      "lines": 0,
+      "covered": 0,
+      "missing_lines": 0,
+      "branches": 0,
+      "partial_branches": 0,
+      "uncovered_line_numbers": []
+    },
+    {
+      "file": "services/settlement/main.py",
+      "coverage_percent": 100.0,
+      "lines": 12,
+      "covered": 12,
+      "missing_lines": 0,
+      "branches": 0,
+      "partial_branches": 0,
+      "uncovered_line_numbers": []
+    },
+    {
+      "file": "services/validation/__init__.py",
+      "coverage_percent": 100.0,
+      "lines": 0,
+      "covered": 0,
+      "missing_lines": 0,
+      "branches": 0,
+      "partial_branches": 0,
+      "uncovered_line_numbers": []
+    },
+    {
+      "file": "services/validation/main.py",
+      "coverage_percent": 100.0,
+      "lines": 12,
+      "covered": 12,
+      "missing_lines": 0,
+      "branches": 0,
       "partial_branches": 0,
       "uncovered_line_numbers": []
     }
   ],
-  "timestamp": "2026-08-11T20:02:04.957560+00:00"
+  "timestamp": "2026-08-12T19:11:43.560392+00:00"
 }

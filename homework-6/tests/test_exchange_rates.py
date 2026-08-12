@@ -1,253 +1,145 @@
-"""Unit tests for exchange rate fetching."""
+"""Unit tests for lib/exchange_rates.py."""
+from __future__ import annotations
+
 from decimal import Decimal
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
-from lib.exchange_rates import fetch_exchange_rates, ExchangeRateError
+from lib.exchange_rates import ExchangeRates, OPEN_ER_API_URL, fetch_exchange_rates
 
 
-class TestFetchExchangeRates:
-    """Tests for fetch_exchange_rates function."""
+# ---------------------------------------------------------------------------
+# ExchangeRates.to_usd
+# ---------------------------------------------------------------------------
 
-    def test_fetch_single_currency(self):
-        """Should fetch exchange rate for a single currency."""
-        mock_response = MagicMock()
-        mock_response.json.return_value = [
-            {"quote": "EUR", "rate": 0.92}
-        ]
 
-        with patch("lib.exchange_rates.requests.get", return_value=mock_response):
-            result = fetch_exchange_rates(["EUR"])
+def test_to_usd_same_currency_returns_amount_unchanged():
+    rates = ExchangeRates(base="USD", rates={"EUR": "0.92"})
+    assert rates.to_usd(Decimal("100"), "USD") == Decimal("100")
 
-        assert "USD" in result
-        assert result["USD"] == Decimal("1")
-        assert result["EUR"] == Decimal("0.92")
 
-    def test_fetch_multiple_currencies(self):
-        """Should fetch multiple currencies."""
-        mock_response = MagicMock()
-        mock_response.json.return_value = [
-            {"quote": "EUR", "rate": 0.92},
-            {"quote": "GBP", "rate": 0.79},
-            {"quote": "JPY", "rate": 150.5}
-        ]
+def test_to_usd_converts_using_rate():
+    rates = ExchangeRates(base="USD", rates={"EUR": "0.92"})
+    result = rates.to_usd(Decimal("92"), "EUR")
+    assert result == Decimal("92") / Decimal("0.92")
 
-        with patch("lib.exchange_rates.requests.get", return_value=mock_response):
-            result = fetch_exchange_rates(["EUR", "GBP", "JPY"])
 
-        assert result["USD"] == Decimal("1")
-        assert result["EUR"] == Decimal("0.92")
-        assert result["GBP"] == Decimal("0.79")
-        assert result["JPY"] == Decimal("150.5")
+def test_to_usd_missing_currency_returns_none():
+    rates = ExchangeRates(base="USD", rates={"EUR": "0.92"})
+    assert rates.to_usd(Decimal("100"), "JPY") is None
 
-    def test_fetch_ignores_usd(self):
-        """Should not request USD exchange rate."""
-        mock_response = MagicMock()
-        mock_response.json.return_value = [
-            {"quote": "EUR", "rate": 0.92}
-        ]
 
-        with patch("lib.exchange_rates.requests.get", return_value=mock_response) as mock_get:
-            result = fetch_exchange_rates(["USD", "EUR"])
+def test_to_usd_zero_rate_raises_division_by_zero():
+    """Known gap: to_usd's falsy-check ("if not rate") does not catch the
+    string "0" (a non-empty string is truthy), so a zero rate reaches the
+    division and raises decimal.DivisionByZero instead of returning None.
+    This test documents the current behaviour rather than asserting the
+    presumably-intended graceful-None outcome, since fixing pipeline code
+    is out of scope for test generation."""
+    import decimal
 
-        # Should still have USD with rate 1
-        assert result["USD"] == Decimal("1")
-        # Should only request EUR, not USD
-        call_args = mock_get.call_args
-        assert "USD" not in call_args[1]["params"]["quotes"]
+    rates = ExchangeRates(base="USD", rates={"XXX": "0"})
+    with pytest.raises(decimal.DivisionByZero):
+        rates.to_usd(Decimal("100"), "XXX")
 
-    def test_fetch_empty_currencies_returns_usd_only(self):
-        """Empty currency list should return only USD."""
-        result = fetch_exchange_rates([])
 
-        assert result == {"USD": Decimal("1")}
+def test_to_usd_lowercase_currency_is_normalized():
+    rates = ExchangeRates(base="USD", rates={"EUR": "0.92"})
+    result = rates.to_usd(Decimal("92"), "eur")
+    assert result == Decimal("92") / Decimal("0.92")
 
-    def test_fetch_with_none_currencies(self):
-        """None currencies should be filtered out."""
-        mock_response = MagicMock()
-        mock_response.json.return_value = [
-            {"quote": "EUR", "rate": 0.92}
-        ]
 
-        with patch("lib.exchange_rates.requests.get", return_value=mock_response):
-            result = fetch_exchange_rates([None, "EUR", None])
+# ---------------------------------------------------------------------------
+# fetch_exchange_rates
+# ---------------------------------------------------------------------------
 
-        assert "EUR" in result
-        assert "None" not in result
 
-    def test_fetch_decimal_precision_preserved(self):
-        """Rates should be Decimal with precision preserved."""
-        mock_response = MagicMock()
-        mock_response.json.return_value = [
-            {"quote": "EUR", "rate": 0.918273645}
-        ]
+def _success_response(rates=None):
+    response = MagicMock()
+    response.raise_for_status = MagicMock()
+    response.json.return_value = {
+        "result": "success",
+        "base_code": "USD",
+        "rates": rates or {"EUR": 0.92, "GBP": 0.79},
+    }
+    return response
 
-        with patch("lib.exchange_rates.requests.get", return_value=mock_response):
-            result = fetch_exchange_rates(["EUR"])
 
-        assert result["EUR"] == Decimal("0.918273645")
+def test_fetch_success_returns_exchange_rates_object():
+    with patch("lib.exchange_rates.requests.get", return_value=_success_response()):
+        result = fetch_exchange_rates(retries=1)
+    assert isinstance(result, ExchangeRates)
+    assert result.base == "USD"
+    assert result.rates["EUR"] == 0.92
 
-    def test_fetch_missing_required_rate_raises_error(self):
-        """Missing rate for requested currency should raise error."""
-        mock_response = MagicMock()
-        mock_response.json.return_value = [
-            {"quote": "EUR", "rate": 0.92}
-            # Missing GBP
-        ]
 
-        with patch("lib.exchange_rates.requests.get", return_value=mock_response):
-            with pytest.raises(ExchangeRateError, match="did not return rates"):
-                fetch_exchange_rates(["EUR", "GBP"])
+def test_fetch_uses_the_open_access_endpoint():
+    with patch("lib.exchange_rates.requests.get", return_value=_success_response()) as mock_get:
+        fetch_exchange_rates(retries=1)
+    called_url = mock_get.call_args[0][0]
+    assert called_url == OPEN_ER_API_URL
 
-    def test_fetch_network_error_retries(self):
-        """Network errors should trigger retries."""
-        mock_response = MagicMock()
-        mock_response.json.return_value = [
-            {"quote": "EUR", "rate": 0.92}
-        ]
 
-        with patch("lib.exchange_rates.requests.get") as mock_get:
-            # Fail twice, succeed on third attempt
-            mock_get.side_effect = [
-                Exception("Connection failed"),
-                Exception("Connection failed"),
-                mock_response
-            ]
+def test_fetch_uses_a_10_second_timeout():
+    with patch("lib.exchange_rates.requests.get", return_value=_success_response()) as mock_get:
+        fetch_exchange_rates(retries=1)
+    assert mock_get.call_args[1]["timeout"] == 10
 
-            with patch("lib.exchange_rates.time.sleep"):  # Don't actually sleep
-                result = fetch_exchange_rates(["EUR"])
 
-        assert result["EUR"] == Decimal("0.92")
-        assert mock_get.call_count == 3
+def test_fetch_non_success_result_raises_runtime_error():
+    response = MagicMock()
+    response.raise_for_status = MagicMock()
+    response.json.return_value = {"result": "error"}
+    with patch("lib.exchange_rates.requests.get", return_value=response), \
+         patch("lib.exchange_rates.time.sleep"):
+        with pytest.raises(RuntimeError):
+            fetch_exchange_rates(retries=1)
 
-    def test_fetch_all_retries_fail_raises_error(self):
-        """All retries failing should raise ExchangeRateError."""
-        with patch("lib.exchange_rates.requests.get") as mock_get:
-            mock_get.side_effect = Exception("Connection failed")
 
-            with patch("lib.exchange_rates.time.sleep"):
-                with pytest.raises(ExchangeRateError):
-                    fetch_exchange_rates(["EUR"])
+def test_fetch_retries_on_failure_then_succeeds():
+    with patch("lib.exchange_rates.requests.get") as mock_get, \
+         patch("lib.exchange_rates.time.sleep") as mock_sleep:
+        mock_get.side_effect = [Exception("network down"), _success_response()]
+        result = fetch_exchange_rates(retries=2, delay_seconds=0)
+    assert result.rates["EUR"] == 0.92
+    assert mock_get.call_count == 2
+    mock_sleep.assert_called()
 
-        assert mock_get.call_count == 3
 
-    def test_fetch_http_error_retries(self):
-        """HTTP errors should trigger retries."""
-        mock_response_fail = MagicMock()
-        mock_response_fail.raise_for_status.side_effect = Exception("500 Server Error")
+def test_fetch_all_retries_exhausted_raises_runtime_error():
+    with patch("lib.exchange_rates.requests.get") as mock_get, \
+         patch("lib.exchange_rates.time.sleep"):
+        mock_get.side_effect = Exception("connection refused")
+        with pytest.raises(RuntimeError, match="failed to fetch live exchange rates"):
+            fetch_exchange_rates(retries=3, delay_seconds=0)
+    assert mock_get.call_count == 3
 
-        mock_response_success = MagicMock()
-        mock_response_success.json.return_value = [
-            {"quote": "EUR", "rate": 0.92}
-        ]
 
-        with patch("lib.exchange_rates.requests.get") as mock_get:
-            mock_get.side_effect = [
-                mock_response_fail,
-                mock_response_success
-            ]
+def test_fetch_never_falls_back_to_a_guessed_rate():
+    """On total failure, fetch_exchange_rates raises rather than returning
+    any stale/guessed ExchangeRates object."""
+    with patch("lib.exchange_rates.requests.get") as mock_get, \
+         patch("lib.exchange_rates.time.sleep"):
+        mock_get.side_effect = Exception("boom")
+        with pytest.raises(RuntimeError):
+            fetch_exchange_rates(retries=1, delay_seconds=0)
 
-            with patch("lib.exchange_rates.time.sleep"):
-                result = fetch_exchange_rates(["EUR"])
 
-        assert result["EUR"] == Decimal("0.92")
+def test_fetch_http_error_status_triggers_retry_then_succeeds():
+    failing = MagicMock()
+    failing.raise_for_status.side_effect = Exception("500 server error")
+    with patch("lib.exchange_rates.requests.get") as mock_get, \
+         patch("lib.exchange_rates.time.sleep"):
+        mock_get.side_effect = [failing, _success_response()]
+        result = fetch_exchange_rates(retries=2, delay_seconds=0)
+    assert result.rates["EUR"] == 0.92
 
-    def test_fetch_timeout_parameter(self):
-        """Request should use 10 second timeout."""
-        mock_response = MagicMock()
-        mock_response.json.return_value = [
-            {"quote": "EUR", "rate": 0.92}
-        ]
 
-        with patch("lib.exchange_rates.requests.get", return_value=mock_response) as mock_get:
-            fetch_exchange_rates(["EUR"])
-
-        # Check timeout parameter
-        call_args = mock_get.call_args
-        assert call_args[1]["timeout"] == 10
-
-    def test_fetch_uses_correct_api_url(self):
-        """Should use Frankfurter API."""
-        mock_response = MagicMock()
-        mock_response.json.return_value = [
-            {"quote": "EUR", "rate": 0.92}
-        ]
-
-        with patch("lib.exchange_rates.requests.get", return_value=mock_response) as mock_get:
-            fetch_exchange_rates(["EUR"])
-
-        call_args = mock_get.call_args
-        assert "frankfurter" in call_args[0][0].lower()
-
-    def test_fetch_request_params_structure(self):
-        """Should send correct params to API."""
-        mock_response = MagicMock()
-        mock_response.json.return_value = [
-            {"quote": "EUR", "rate": 0.92}
-        ]
-
-        with patch("lib.exchange_rates.requests.get", return_value=mock_response) as mock_get:
-            fetch_exchange_rates(["EUR"])
-
-        call_args = mock_get.call_args
-        params = call_args[1]["params"]
-        assert params["base"] == "USD"
-        assert "EUR" in params["quotes"]
-
-    def test_exchange_rate_error_message(self):
-        """ExchangeRateError should have descriptive message."""
-        with patch("lib.exchange_rates.requests.get") as mock_get:
-            mock_get.side_effect = Exception("Network error")
-
-            with patch("lib.exchange_rates.time.sleep"):
-                with pytest.raises(ExchangeRateError) as exc_info:
-                    fetch_exchange_rates(["EUR"])
-
-        assert "failed to fetch" in str(exc_info.value)
-        assert "frankfurter" in str(exc_info.value).lower()
-
-    def test_fetch_sorted_currency_quotes(self):
-        """Currencies should be sorted in request."""
-        mock_response = MagicMock()
-        mock_response.json.return_value = [
-            {"quote": "GBP", "rate": 0.79},
-            {"quote": "EUR", "rate": 0.92},
-            {"quote": "JPY", "rate": 150.5}
-        ]
-
-        with patch("lib.exchange_rates.requests.get", return_value=mock_response) as mock_get:
-            fetch_exchange_rates(["JPY", "EUR", "GBP"])
-
-        call_args = mock_get.call_args
-        quotes_str = call_args[1]["params"]["quotes"]
-        quotes_list = quotes_str.split(",")
-        assert quotes_list == sorted(quotes_list)
-
-    def test_fetch_returns_decimal_type(self):
-        """All returned rates should be Decimal type."""
-        mock_response = MagicMock()
-        mock_response.json.return_value = [
-            {"quote": "EUR", "rate": 0.92},
-            {"quote": "GBP", "rate": 0.79}
-        ]
-
-        with patch("lib.exchange_rates.requests.get", return_value=mock_response):
-            result = fetch_exchange_rates(["EUR", "GBP"])
-
-        for currency, rate in result.items():
-            assert isinstance(rate, Decimal)
-
-    def test_fetch_handles_string_rates_from_api(self):
-        """API might return rates as strings."""
-        mock_response = MagicMock()
-        mock_response.json.return_value = [
-            {"quote": "EUR", "rate": "0.92"},  # String instead of number
-            {"quote": "GBP", "rate": 0.79}      # Number
-        ]
-
-        with patch("lib.exchange_rates.requests.get", return_value=mock_response):
-            result = fetch_exchange_rates(["EUR", "GBP"])
-
-        assert result["EUR"] == Decimal("0.92")
-        assert result["GBP"] == Decimal("0.79")
+def test_fetch_single_retry_does_not_sleep_after_final_attempt():
+    with patch("lib.exchange_rates.requests.get") as mock_get, \
+         patch("lib.exchange_rates.time.sleep") as mock_sleep:
+        mock_get.side_effect = Exception("boom")
+        with pytest.raises(RuntimeError):
+            fetch_exchange_rates(retries=1, delay_seconds=5)
+    mock_sleep.assert_not_called()

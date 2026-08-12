@@ -11,11 +11,63 @@
     "channel": "online",
     "country": "US"
   },
-  "validation_result": {
-    "status": "failed",
-    "reason": "invalid currency code: XYZ",
-    "checked_at": "2026-08-10T19:59:03.556241+00:00"
-  },
-  "reason": "invalid currency code: XYZ",
-  "final_status": "rejected"
+  "verdict": "REJECTED",
+  "fraud_flagged": false,
+  "reason": "validation: currency 'XYZ' is not a valid ISO 4217 code",
+  "stage_outcomes": {
+    "validation_result": {
+      "passed": false,
+      "reason": "currency 'XYZ' is not a valid ISO 4217 code",
+      "errors": [
+        "currency 'XYZ' is not a valid ISO 4217 code"
+      ]
+    },
+    "fraud_result": {
+      "score": "0.3",
+      "flagged": false,
+      "factors": {
+        "high_value_amount": {
+          "triggered": false,
+          "weight": 0.5,
+          "applicable": false,
+          "note": "no exchange rate available for currency 'XYZ'"
+        },
+        "cross_border_mismatch": {
+          "triggered": true,
+          "weight": 0.3,
+          "applicable": true,
+          "note": "metadata.country=US vs baseline GB"
+        },
+        "unusual_hour_timing": {
+          "triggered": false,
+          "weight": 0.2,
+          "applicable": true,
+          "note": "transaction time 10:05:00 UTC"
+        }
+      },
+      "missing": [
+        "high_value_amount: no exchange rate available for currency 'XYZ'"
+      ]
+    },
+    "compliance_result": {
+      "status": "passed",
+      "reason": null,
+      "rule_outcomes": {
+        "fraud_conditional_hold": {
+          "outcome": "clear",
+          "note": "no fraud flag present"
+        },
+        "validation_conditional_audit_completeness": {
+          "outcome": "incomplete_audit",
+          "note": "record failed validation: currency 'XYZ' is not a valid ISO 4217 code"
+        }
+      }
+    },
+    "settlement_result": {
+      "status": "settled",
+      "settlement_reference": "5b5a9c54-8f7b-427b-91f8-99630b76d701",
+      "settlement_timestamp": "2026-08-12T18:33:57.533373+00:00",
+      "reason": "retained 5 years under GDPR legal-obligation basis, then purged or anonymized"
+    }
+  }
 }

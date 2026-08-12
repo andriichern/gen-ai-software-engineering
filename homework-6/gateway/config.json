@@ -1,0 +1,10 @@
+{
+  "order": ["validation", "fraud_detection", "compliance", "settlement"],
+  "services": {
+    "validation": {"url": "http://127.0.0.1:8001", "path": "/validate"},
+    "fraud_detection": {"url": "http://127.0.0.1:8002", "path": "/score"},
+    "compliance": {"url": "http://127.0.0.1:8003", "path": "/check"},
+    "settlement": {"url": "http://127.0.0.1:8004", "path": "/settle"}
+  },
+  "reporting": {"url": "http://127.0.0.1:8005", "path": "/report"}
+}

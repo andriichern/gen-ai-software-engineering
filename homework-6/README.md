@@ -1,70 +1,70 @@
 # Transaction Processing Pipeline
 
 **Student:** Andrii Chernenko
-
 **Date:** 12.08.2026
-
-**AI tools used:** Claude Code, with the project's own `.claude/agents/` definitions (`documentation`, `pipeline-codegen`, `skills-hooks`, `specification`, `tests-codegen`) and `.claude/skills/` (`run-complete-flow`, `run-pipeline`, `validate-transactions`, `write-spec`); the `context7` MCP server for library documentation lookups; a custom `pipeline-status` MCP server (built on FastMCP) for read-only pipeline querying; and a `PreToolUse` hook that gates `git push`/`gh pr create` on a coverage threshold.
+**AI tools used:** Claude Code, with the custom agents `documentation`, `pipeline-codegen`, `skills-hooks`, `specification`, and `tests-codegen` (`.claude/agents/`); the skills `run-complete-flow`, `run-pipeline`, `validate-transactions`, and `write-spec` (`.claude/skills/`); the `context7` and `pipeline-status` MCP servers (`.mcp.json`); and a pre-push coverage-gate hook (`.claude/settings.json`).
 
 ## Overview
 
-This system takes a JSON array of raw financial transaction records and carries each one through a five-stage file-based pipeline — validation, fraud scoring, compliance screening, settlement and reporting — publishing an auditable outcome for every transaction. Each stage exchanges records through a shared working directory tree rather than direct function calls, associating records by `transaction_id` at every boundary.
+The system processes financial transaction records through a fixed sequence of stages — Validation, Fraud Detection, Compliance Check, Settlement Processing, and Reporting — annotating each record with the outcome of every stage it passes through and producing one final verdict per transaction (SETTLED, REJECTED, HELD, or INCOMPLETE). Input is a JSON list of transaction records (defaulting to `sample-transactions.json`); each record carries an ID, timestamp, source and destination accounts, a decimal amount and ISO 4217 currency, a transaction type, and optional metadata such as country and channel.
 
-Input is a transaction dataset (defaulting to `sample-transactions.json`) where each record carries an identifier, timestamp, source/destination accounts, a decimal amount and currency, a transaction type, description and open metadata. Output is one final JSON record per transaction in `shared/results/`, combining the original fields with every stage's result and a `final_status` of `rejected`, `held`, `settlement_refused` or `settled`, plus an aggregate run summary in `shared/report.json` and a live-updated `shared/status.json`.
+Records are never dropped or terminated early — every record traverses every stage, and adverse findings (a fraud score, a compliance hold) are recorded as annotations, not rejections. The same five stage functions can be run two ways: end to end through a standalone orchestrator that writes intermediate and final state to a `shared/` file tree, or individually over HTTP through a set of stage services fronted by a gateway that submits one transaction at a time and returns its accumulated results.
 
 ## Pipeline stages
 
-- **Validation** (`pipeline/validation.py`) — confirms every required field is present and correctly typed, that `amount` parses as a decimal, and that `currency` is a genuine ISO 4217 code. Passing records continue to Fraud Detection; failing records are written straight to `shared/results/` with a rejection reason and go no further. Also exposes a standalone dry-run that checks a dataset without writing anything.
-- **Fraud Detection** (`pipeline/fraud_detection.py`) — scores every validated transaction with three weighted, explainable factors (high-value amount, cross-border/country mismatch, unusual-hour timing), converting amounts to USD using fetched exchange rates. Flags at a score of 0.50 or above but never rejects; every transaction continues to Compliance.
-- **Compliance Check** (`pipeline/compliance.py`) — applies a GDPR / Data Protection Act 2018 baseline to every record. A fraud-flagged transaction is held for human review rather than auto-rejected; cleared transactions continue to Settlement, and held/rejected ones are finalized to `shared/results/`.
-- **Settlement Processing** (`pipeline/settlement.py`) — settles compliance-cleared transactions against an internal simulated ledger, generating a settlement reference and UTC timestamp with no external call. Refuses (and finalizes) any record whose compliance result is missing or not cleared.
-- **Reporting** (`pipeline/reporting.py`) — aggregates every processed record (settled and already-terminal ones) into the run summary written to `shared/report.json`, then joins each settled transaction's original fields with its accumulated stage results and writes the final record to `shared/results/`.
+- **Validation** — checks each transaction for required fields, a valid decimal `amount`, an ISO 4217 `currency`, and a valid ISO 8601 UTC `timestamp`; records a pass/fail outcome with a reason. Also supports a standalone, read-only mode that checks an input source without touching `shared/`.
+- **Fraud Detection** — scores each transaction 0.00–1.00 from three weighted, additive factors (high-value amount, cross-border mismatch, unusual-hour timing) and flags it for review at a score of 0.50 or higher; it only flags, it never rejects.
+- **Compliance Check** — applies GDPR / Data Protection Act 2018 rules; a flagged or non-compliant record is held for human review (never auto-rejected), per GDPR Article 22.
+- **Settlement Processing** — settles records that passed Compliance Check by assigning a settlement reference and timestamp in an internal simulated ledger; held or compliance-absent records are marked not-settled with a reason.
+- **Reporting** — the terminal stage; computes each transaction's final verdict from the accumulated stage outcomes by a pinned precedence rule, and is the sole writer of `shared/results/`, `shared/report.json`, and the stage tallies in `shared/status.json`.
 
-The orchestrator (`orchestrator.py`) wipes and recreates the `shared/` tree, copies the input dataset into `shared/input/`, fetches live exchange rates once for the currencies present in the input, then runs the five stages above in this fixed order, in-process, updating `shared/status.json` as each stage starts and completes.
-
-## Architecture diagram
+## Architecture
 
 ```
-Input dataset (sample-transactions.json)
-            |
-            v
-     shared/input/  (copied, read-only for the run)
-            |
-            v
-     +----------------+
-     |   Validation   |----fail----> shared/results/ (rejected)
-     +----------------+
-            | pass
-            v
-     +------------------+
-     | Fraud Detection  |  (scores, flags, never rejects)
-     +------------------+
-            |
-            v
-     +----------------+
-     |   Compliance   |----held/rejected----> shared/results/
-     +----------------+
-            | cleared
-            v
-     +----------------+
-     |   Settlement   |----refused----> shared/results/
-     +----------------+
-            | settled
-            v
-     +----------------+
-     |   Reporting    |----> shared/report.json  (run summary)
-     +----------------+
-            |
-            v
-     shared/results/  (final per-transaction record)
+sample-transactions.json (or --source)
+              |
+              v
+   ORCHESTRATOR (orchestrator.py) -- fixed order, no service layer, no shared/ config
+              |
+              v
+   shared/input/ --> [Validation] --> [Fraud Detection] --> [Compliance] --> [Settlement] --> [Reporting]
+                        (shared/processing/ + shared/output/ carry each transaction between stages)
+                                                                                    |
+                                                                                    v
+                                                          shared/results/*.json, shared/report.json, shared/status.json
+
+   -------------------------------------------------------------------------------------------------
+
+   SERVICE LAYER (independent of the orchestrator; reads/writes nothing in shared/)
+
+   client --> gateway/main.py (POST /process)
+                     |  order read once at startup from gateway/config.json
+                     v
+        [validation :8001] -> [fraud_detection :8002] -> [compliance :8003] -> [settlement :8004]
+                     |  (order above is config.json's default; gateway.config.json is authoritative)
+                     v
+                        always last, not reorderable
+                        [reporting :8005]
+                     |
+                     v
+              JSON response: transaction_id, context, stages_not_run, report
 ```
 
-`shared/status.json` is updated live throughout by the orchestrator as each stage starts and completes.
+The bullet order above is the orchestrator's hardcoded order (`STAGE_NAMES` in `orchestrator.py`): Validation, Fraud Detection, Compliance, Settlement, Reporting. The gateway's order for the four reorderable stages is a separate, independent setting read from `gateway/config.json`'s `"order"` list; Reporting is always invoked last by the gateway and is never part of that list. The orchestrator never reads `gateway/config.json`, and the gateway never touches `shared/` — the pipeline runs completely standalone, with no dependency on the service layer.
+
+## Service layer
+
+Each of the five stages is also exposed as its own stateless FastAPI HTTP service under `services/<stage>/main.py` (`validation`, `fraud_detection`, `compliance`, `settlement`, `reporting`), each a thin wrapper that imports and calls the corresponding `pipeline/` function unchanged. All five share one request/response contract (`lib/service_schemas.py`): a `StageRequest` of `{transaction, context}` and a `StageResponse` of `{stage, result}`.
+
+The gateway (`gateway/main.py`, `POST /process`) accepts a single transaction, drives it through the stage services in the order declared by `gateway/config.json`, always calling Reporting last, and returns the accumulated context, any stages that did not run, and the reporting result. A stage service that is unreachable or errors is retried 3 times, then skipped, which forces that transaction's verdict to INCOMPLETE. Both the services and the gateway are stateless: nothing is read from or written to `shared/`, so the pipeline runs standalone with none of this layer present.
 
 ## Tech stack
 
-| Component                                         | Language / runtime                                                                                     | Frameworks & key libraries                                                                                                                              |
-| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Pipeline (`orchestrator.py`, `pipeline/`, `lib/`) | Python 3 (Python 3.14.6 found in this environment; no version is pinned by a file in this folder)      | `pycountry` (ISO 4217 currency validation), `requests` (live exchange-rate fetch with retry), standard library `decimal`, `pathlib`, `uuid`, `argparse` |
-| MCP server (`mcp/server.py`)                      | Python 3                                                                                               | `fastmcp` (FastMCP), standard library `json`, `os`, `pathlib`                                                                                           |
-| UI (`ui/`)                                        | JavaScript (Node.js v24.14.1 found in this environment; no version is pinned by a file in this folder) | Svelte 5, SvelteKit 2 (with `@sveltejs/adapter-node`), Vite 5, Tailwind CSS 3, Prettier                                                                 |
+| Component | Language / runtime | Frameworks & key libraries |
+|---|---|---|
+| Pipeline (`pipeline/`, `lib/`, `orchestrator.py`) | Python (3.14.6 on this machine; no version pin found in a manifest) | Standard library (`decimal`, `pathlib`); `pycountry` for ISO 4217 currency validation; `requests` for the live exchange-rate client |
+| Service layer (`services/`, `gateway/`) | Python (same manifest, `requirements.txt`, as the pipeline) | `fastapi` for routing and request/response models; `httpx` for the gateway's outbound calls to stage services |
+| MCP server (`mcp/server.py`) | Python | `fastmcp` |
+| UI (`ui/`) | JavaScript (SvelteKit project) | `svelte`, `@sveltejs/kit`, `vite`, `tailwindcss` (per `ui/package.json`) |
+
+All Python components share one manifest, `requirements.txt`, at the project root (`pycountry`, `requests`, `fastmcp`, `pytest`, `pytest-cov`, `fastapi`, `httpx`).

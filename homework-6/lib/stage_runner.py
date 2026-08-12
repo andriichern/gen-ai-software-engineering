@@ -1,68 +1,129 @@
-"""Shared per-file execution loop reused by every pipeline stage.
-
-Owns only the mechanical file lifecycle common to every stage's main loop:
-list the source directory, copy-or-move each file into processing/, hand it
-to the stage's own per-record callback, optionally clear the processing file,
-and tally processed/passed/failed from the callback's return value. Every
-stage keeps its own directory parameters, defaults, and business logic --
-this module knows nothing about what any stage actually does with a record.
+"""Generic file-based stage execution over shared/, reused by both the
+orchestrator and every stage's standalone CLI entry point so the two never
+disagree about how a stage reads its source directory, stages work in
+processing/, and writes its output.
 """
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Callable, Dict
-from time import sleep
+from typing import Callable
 
-from lib.common import (
-    clear_processing_file,
-    copy_into_processing,
-    list_json_files,
-    move_into_processing,
-)
-
-ProcessFn = Callable[[str, Path], bool]
+from lib.message_io import build_envelope, context_from_envelope_data, read_json, write_json
+from lib.models import Transaction
 
 
-def run_stage_loop(
+def run_first_stage(
+    *,
+    stage_name: str,
+    next_stage: str,
+    result_key: str,
+    compute_fn: Callable,
+    raw_input_dir: Path,
+    processing_dir: Path,
+    output_dir: Path,
+    is_pass: Callable[[object], bool],
+) -> dict:
+    """Validation-shaped stage: reads raw transaction records (not envelopes)
+    from raw_input_dir, stages them through processing_dir, and writes the
+    first envelope (with an empty starting context) to output_dir.
+    raw_input_dir is never modified."""
+    processing_dir.mkdir(parents=True, exist_ok=True)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    record_files = sorted(raw_input_dir.glob("*.json"))
+    staged: list[Path] = []
+    for record_path in record_files:
+        record_data = read_json(record_path)
+        proc_path = processing_dir / record_path.name
+        write_json(proc_path, record_data)
+        staged.append(proc_path)
+
+    processed = 0
+    passed = 0
+    failed = 0
+
+    for proc_path in staged:
+        record_data = read_json(proc_path)
+        record = Transaction.from_dict(record_data)
+
+        from lib.models import StageContext
+
+        result = compute_fn(record, StageContext())
+
+        lean_data = {
+            "transaction_id": record.transaction_id,
+            "amount": record.amount,
+            "currency": record.currency,
+            result_key: result.to_dict(),
+        }
+        envelope = build_envelope(stage_name, next_stage, lean_data)
+        write_json(output_dir / proc_path.name, envelope)
+        proc_path.unlink()
+
+        processed += 1
+        outcome = is_pass(result)
+        passed += 1 if outcome else 0
+        failed += 0 if outcome else 1
+        print(f"[{stage_name}] {record.transaction_id}: {'pass' if outcome else 'fail'}")
+
+    return {"processed": processed, "passed": passed, "failed": failed}
+
+
+def run_downstream_stage(
+    *,
+    stage_name: str,
+    next_stage: str,
+    result_key: str,
+    compute_fn: Callable,
     source_dir: Path,
     processing_dir: Path,
-    copy_mode: str,
-    process_fn: ProcessFn,
-    clear_processing: bool = True,
-) -> Dict[str, int]:
-    """Runs `process_fn(transaction_id, working_path)` once per file in
-    `source_dir`, moving or copying each into `processing_dir` first per
-    `copy_mode` ("copy" or "move").
+    output_dir: Path,
+    input_dir: Path,
+    is_pass: Callable[[object], bool],
+    extra_kwargs: dict | None = None,
+) -> dict:
+    """Fraud/Compliance/Settlement-shaped stage: drains envelope messages
+    from source_dir (normally shared/output/, reused for every stage) into
+    processing_dir, computes this stage's result using the accumulated
+    context plus the fresh original record from input_dir, then writes the
+    updated envelope back to output_dir."""
+    extra_kwargs = extra_kwargs or {}
+    processing_dir.mkdir(parents=True, exist_ok=True)
+    output_dir.mkdir(parents=True, exist_ok=True)
 
-    `process_fn` owns everything about a record beyond the file lifecycle:
-    reading it, deciding what to do, and writing wherever it belongs. Its
-    return value is the sole outcome signal: True counts as passed, False as
-    failed, toward the returned {"processed", "passed", "failed"} tally.
+    source_files = sorted(source_dir.glob("*.json"))
+    staged: list[Path] = []
+    for src_path in source_files:
+        envelope = read_json(src_path)
+        proc_path = processing_dir / src_path.name
+        write_json(proc_path, envelope)
+        src_path.unlink()
+        staged.append(proc_path)
 
-    When `clear_processing` is False, the working file in `processing_dir` is
-    left for the caller to clear itself (Reporting needs this, since it
-    clears each file only after its own later aggregate-and-finalize step).
-    """
-    if copy_mode not in ("copy", "move"):
-        raise ValueError(f"copy_mode must be 'copy' or 'move', got {copy_mode!r}")
+    processed = 0
+    passed = 0
+    failed = 0
 
-    processed = passed = failed = 0
-    for src in list_json_files(source_dir):
-        transaction_id = src.stem
-        working = (
-            copy_into_processing(src, processing_dir)
-            if copy_mode == "copy"
-            else move_into_processing(src, processing_dir)
-        )
+    for proc_path in staged:
+        envelope = read_json(proc_path)
+        data = envelope["data"]
+        transaction_id = data["transaction_id"]
 
-        outcome = process_fn(transaction_id, working)
+        original = read_json(input_dir / f"{transaction_id}.json")
+        record = Transaction.from_dict(original)
+        context = context_from_envelope_data(data)
+
+        result = compute_fn(record, context, **extra_kwargs)
+
+        data[result_key] = result.to_dict()
+        new_envelope = build_envelope(stage_name, next_stage, data)
+        write_json(output_dir / proc_path.name, new_envelope)
+        proc_path.unlink()
+
         processed += 1
-        if outcome:
-            passed += 1
-        else:
-            failed += 1
-
-        if clear_processing:
-            clear_processing_file(working)
+        outcome = is_pass(result)
+        passed += 1 if outcome else 0
+        failed += 0 if outcome else 1
+        print(f"[{stage_name}] {transaction_id}: {'pass' if outcome else 'fail'}")
 
     return {"processed": processed, "passed": passed, "failed": failed}

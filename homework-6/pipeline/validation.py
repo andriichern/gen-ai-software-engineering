@@ -1,35 +1,29 @@
 """Validation stage.
 
-Reads each transaction record from shared/input, moves a working copy into
-shared/processing while checking it against the canonical schema, and either
-forwards it (annotated) to shared/output or writes a rejection directly to
-shared/results.
+Checks each input transaction for well-formedness and required fields.
+Validation rules depend only on the record itself, never on prior-stage
+results, so this stage always produces a definite pass/fail outcome and
+never records a rule as not-applicable.
+
+Also exposes a standalone, read-only "--check" CLI mode that validates a
+transaction dataset directly (never shared/input/) without touching
+shared/ at all.
 """
 from __future__ import annotations
 
 import argparse
 import json
+from datetime import datetime
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
-from typing import Any, Dict
 
 import pycountry
 
-from lib.common import (
-    audit,
-    lean_data,
-    make_envelope,
-    parse_decimal,
-    parse_iso8601,
-    read_json,
-    utc_now_iso,
-    write_envelope,
-    write_final_result,
-)
-from lib.stage_runner import run_stage_loop
+from lib.dataset import load_transactions
+from lib.models import StageContext, Transaction, ValidationResult
+from lib.stage_runner import run_first_stage
 
-STAGE_NAME = "validation"
-DEFAULT_DATASET = "sample-transactions.json"
-REQUIRED_TOP_LEVEL_FIELDS = (
+REQUIRED_FIELDS = [
     "transaction_id",
     "timestamp",
     "source_account",
@@ -37,179 +31,151 @@ REQUIRED_TOP_LEVEL_FIELDS = (
     "amount",
     "currency",
     "transaction_type",
-    "description",
-    "metadata",
-)
+]
 
 
-def _iso4217_valid(code: Any) -> bool:
-    if not isinstance(code, str) or not code:
+def _is_valid_decimal(value) -> bool:
+    if not isinstance(value, str):
+        return False
+    try:
+        Decimal(value)
+    except InvalidOperation:
+        return False
+    return True
+
+
+def _is_valid_iso4217(code) -> bool:
+    if not isinstance(code, str) or len(code) != 3:
         return False
     return pycountry.currencies.get(alpha_3=code.upper()) is not None
 
 
-def validate_transaction(record: Dict[str, Any]) -> Dict[str, Any]:
-    """Confirms presence/type of every canonical field and returns a ValidationResult:
-    {"status": "passed"|"failed", "reason": str|None, "checked_at": ISO 8601 UTC}.
-    """
-    for field in REQUIRED_TOP_LEVEL_FIELDS:
-        if field not in record or record[field] in (None, ""):
-            return {
-                "status": "failed",
-                "reason": f"missing required field: {field}",
-                "checked_at": utc_now_iso(),
-            }
-
-    if not isinstance(record["transaction_id"], str):
-        return {"status": "failed", "reason": "transaction_id must be a string", "checked_at": utc_now_iso()}
-
-    try:
-        parse_iso8601(record["timestamp"])
-    except (ValueError, TypeError):
-        return {
-            "status": "failed",
-            "reason": f"invalid timestamp: {record.get('timestamp')!r}",
-            "checked_at": utc_now_iso(),
-        }
-
-    if not isinstance(record["source_account"], str):
-        return {"status": "failed", "reason": "source_account must be a string", "checked_at": utc_now_iso()}
-    if not isinstance(record["destination_account"], str):
-        return {"status": "failed", "reason": "destination_account must be a string", "checked_at": utc_now_iso()}
-
-    amount_raw = record["amount"]
-    if not isinstance(amount_raw, str):
-        return {
-            "status": "failed",
-            "reason": f"amount must be a decimal string, got {type(amount_raw).__name__}",
-            "checked_at": utc_now_iso(),
-        }
-    try:
-        parse_decimal(amount_raw)
-    except ValueError as exc:
-        return {"status": "failed", "reason": str(exc), "checked_at": utc_now_iso()}
-
-    currency = record["currency"]
-    if not _iso4217_valid(currency):
-        return {
-            "status": "failed",
-            "reason": f"invalid currency code: {currency}",
-            "checked_at": utc_now_iso(),
-        }
-
-    if not isinstance(record["transaction_type"], str):
-        return {"status": "failed", "reason": "transaction_type must be a string", "checked_at": utc_now_iso()}
-
-    if not isinstance(record["description"], str):
-        return {"status": "failed", "reason": "description must be a string", "checked_at": utc_now_iso()}
-
-    metadata = record["metadata"]
-    if not isinstance(metadata, dict):
-        return {"status": "failed", "reason": "metadata must be an object", "checked_at": utc_now_iso()}
-    channel = metadata.get("channel")
-    country = metadata.get("country")
-    if not isinstance(channel, str) or not channel:
-        return {"status": "failed", "reason": "missing required field: metadata.channel", "checked_at": utc_now_iso()}
-    if not isinstance(country, str) or not country:
-        return {"status": "failed", "reason": "missing required field: metadata.country", "checked_at": utc_now_iso()}
-
-    return {"status": "passed", "reason": None, "checked_at": utc_now_iso()}
-
-def run_stage(input_dir: Path, processing_dir: Path, output_dir: Path, results_dir: Path) -> Dict[str, int]:
-    def process_transaction(transaction_id: str, working: Path) -> bool:
-        record = read_json(working)
-        result = validate_transaction(record)
-
-        if result["status"] == "passed":
-            data = lean_data(transaction_id, record["amount"], record["currency"], {"validation_result": result})
-            envelope = make_envelope(STAGE_NAME, "fraud_detection", data)
-            write_envelope(output_dir, transaction_id, envelope)
-            audit(STAGE_NAME, transaction_id, "passed")
-            return True
-
-        write_final_result(
-            results_dir,
-            input_dir,
-            transaction_id,
-            {
-                "validation_result": result,
-                "reason": result["reason"],
-                "final_status": "rejected",
-            },
-        )
-        audit(STAGE_NAME, transaction_id, f"failed: {result['reason']}")
+def _is_valid_iso8601_utc(value) -> bool:
+    if not isinstance(value, str):
         return False
+    text = value.strip()
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        return False
+    return parsed.tzinfo is not None
 
-    return run_stage_loop(input_dir, processing_dir, "copy", process_transaction)
 
+def validate_transaction(record: Transaction, context: StageContext) -> ValidationResult:
+    """validate_transaction(record, context) -> ValidationResult
 
-def dry_run(dataset: Path) -> Dict[str, Any]:
-    """Validates every record in `dataset` and reports the outcome without
-    writing anything: no shared directory is read, created, or modified, and
-    no record is altered. Reuses `validate_transaction` unchanged, so a
-    dry run and a real run always agree on whether a record is valid.
-
-    Returns {"dataset", "total", "valid", "invalid", "results"}, where each
-    entry of "results" is {"transaction_id", "status", "reason"}.
+    context is accepted for signature/contract uniformity with the other
+    stages but is never consulted: validation depends only on the record.
     """
-    records = read_json(dataset)
-    if not isinstance(records, list):
-        raise ValueError(f"dataset must be a JSON array of transaction records: {dataset}")
+    data = record.to_dict() if isinstance(record, Transaction) else dict(record)
+    errors: list[str] = []
 
-    results = []
-    for record in records:
-        result = validate_transaction(record)
-        results.append(
+    for field_name in REQUIRED_FIELDS:
+        if data.get(field_name) in (None, ""):
+            errors.append(f"missing required field: {field_name}")
+
+    if data.get("amount") not in (None, "") and not _is_valid_decimal(data["amount"]):
+        errors.append("amount is not a valid decimal string")
+
+    if data.get("currency") not in (None, "") and not _is_valid_iso4217(data["currency"]):
+        errors.append(f"currency '{data['currency']}' is not a valid ISO 4217 code")
+
+    if data.get("timestamp") not in (None, "") and not _is_valid_iso8601_utc(data["timestamp"]):
+        errors.append("timestamp is not a valid ISO 8601 UTC datetime")
+
+    passed = not errors
+    reason = None if passed else "; ".join(errors)
+    return ValidationResult(passed=passed, reason=reason, errors=errors)
+
+
+def run_standalone_check(source: str) -> dict:
+    """Read-only report mode: validates every record in `source` (a dataset
+    file or directory, never shared/input/) and returns a structured,
+    machine-readable report. Writes nothing anywhere."""
+    records = load_transactions(source)
+    entries = []
+    valid = 0
+    invalid = 0
+    for raw in records:
+        txn = Transaction.from_dict(raw)
+        result = validate_transaction(txn, StageContext())
+        if result.passed:
+            valid += 1
+        else:
+            invalid += 1
+        entries.append(
             {
-                "transaction_id": record.get("transaction_id"),
-                "status": result["status"],
-                "reason": result["reason"],
+                "transaction_id": txn.transaction_id,
+                "passed": result.passed,
+                "reason": result.reason,
             }
         )
-
-    valid = sum(1 for r in results if r["status"] == "passed")
     return {
-        "dataset": str(dataset),
-        "total": len(results),
+        "total": len(records),
         "valid": valid,
-        "invalid": len(results) - valid,
-        "results": results,
+        "invalid": invalid,
+        "results": entries,
     }
 
 
-def _default_shared_dir() -> Path:
-    return Path("shared")
+def _is_pass(result: ValidationResult) -> bool:
+    return result.passed
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run the Validation stage standalone.")
-    parser.add_argument("--input-dir", type=Path, default=_default_shared_dir() / "input")
-    parser.add_argument("--output-dir", type=Path, default=_default_shared_dir() / "output")
-    parser.add_argument("--processing-dir", type=Path, default=_default_shared_dir() / "processing")
-    parser.add_argument("--results-dir", type=Path, default=_default_shared_dir() / "results")
-    parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        help=(
-            "Validate every record in the dataset and print a JSON report to stdout "
-            "WITHOUT writing anything: no shared directory is read, created, or "
-            "modified, and no record is altered. Use --dataset to pick the input file."
+    parser = argparse.ArgumentParser(
+        prog="validation",
+        description=(
+            "Validation stage for the transaction processing pipeline. "
+            "In normal (mutating) mode it reads shared/input/, annotates every "
+            "record with a validation_result, and writes shared/output/."
         ),
     )
     parser.add_argument(
-        "--dataset",
-        type=Path,
-        default=Path(DEFAULT_DATASET),
-        help=f"Dataset validated by --dry-run (default: {DEFAULT_DATASET}). Ignored without --dry-run.",
+        "--input-dir",
+        default="shared/input",
+        help="Directory of raw transaction records to validate (mutating mode only).",
+    )
+    parser.add_argument(
+        "--output-dir",
+        default="shared/output",
+        help="Directory to write annotated messages to (mutating mode only).",
+    )
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help=(
+            "Standalone, read-only mode: validate the dataset given by --source "
+            "and print a JSON report (per-record pass/fail plus total/valid/invalid "
+            "counts) to stdout. Writes nothing to shared/ or anywhere else. "
+            "Has no effect unless this flag is set."
+        ),
+    )
+    parser.add_argument(
+        "--source",
+        default="sample-transactions.json",
+        help="Transaction dataset (file or directory) to validate. Only used with --check.",
     )
     args = parser.parse_args()
 
-    if args.dry_run:
-        print(json.dumps(dry_run(args.dataset), indent=2))
+    if args.check:
+        report = run_standalone_check(args.source)
+        print(json.dumps(report, indent=2))
         return
 
-    tally = run_stage(args.input_dir, args.processing_dir, args.output_dir, args.results_dir)
-    print(f"[{STAGE_NAME}] processed={tally['processed']} passed={tally['passed']} failed={tally['failed']}")
+    tally = run_first_stage(
+        stage_name="validation",
+        next_stage="fraud_detection",
+        result_key="validation_result",
+        compute_fn=validate_transaction,
+        raw_input_dir=Path(args.input_dir),
+        processing_dir=Path(args.output_dir).parent / "processing",
+        output_dir=Path(args.output_dir),
+        is_pass=_is_pass,
+    )
+    print(f"[validation] done: {tally}")
 
 
 if __name__ == "__main__":

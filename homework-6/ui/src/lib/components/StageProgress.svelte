@@ -12,8 +12,8 @@
 
 	function stateOf(s) {
 		if (!s) return 'pending';
-		if (s.start && !s.end) return 'running';
-		if (s.end) return 'done';
+		if (s.started_at && !s.completed_at) return 'running';
+		if (s.completed_at) return 'done';
 		return 'pending';
 	}
 

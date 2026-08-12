@@ -1,1 +1,1 @@
-"""Shared internal types and utilities reused across pipeline stages."""
+"""Shared internal types and utilities reused across pipeline stages and services."""

@@ -6,19 +6,24 @@ Shared procedure for determining, at run time, what this project is actually bui
 
 ---
 
-## Scope: three components, no others
+## Scope: four components, no others
 
-Discovery runs per component, because different components may use entirely different stacks. Discover exactly these three, each independently:
+Discovery runs per component, because different components may use entirely different stacks. Discover exactly these four, each independently:
 
 | Component | How to locate it |
 |---|---|
 | **Pipeline** | The directory holding the pipeline stage modules, plus the orchestrator/runner at the project root that drives them |
+| **Service layer** | The directory holding the per-stage HTTP services, plus the directory holding the API gateway and its stage-order configuration file |
 | **MCP server** | The directory holding the custom MCP server implementation, plus the MCP configuration file at the project root |
 | **UI / front-end** | The directory holding the user-facing application |
 
 Locate each by inspecting the directory tree, not by assuming a name. If a component's directory cannot be found, record it as absent — do not substitute a guess, and do not report a component that does not exist.
 
-Discover nothing else. Other directories (tests, scripts, docs, build output, dependency caches, version-control internals) are **out of scope** for stack discovery. Where test tooling is relevant to a caller, derive it from the pipeline component's stack and its test configuration files rather than treating it as a fourth component.
+**The service layer is one component, not six.** The stage services and the gateway share a language and an HTTP framework, so discover them together and report them once. Do note, as part of that component's findings, **how many stage services exist, the gateway's stage-order configuration file, and the default order it declares** — those are facts a caller may need, and they come from reading that file, never from assumption.
+
+**The service layer's language is the pipeline's**, because the services import the stage functions directly. Confirm that from the manifests rather than asserting it; if they disagree, that is a conflict for the clause below, not something to reconcile silently.
+
+Discover nothing else. Other directories (tests, scripts, docs, build output, dependency caches, version-control internals) are **out of scope** for stack discovery. Where test tooling is relevant to a caller, derive it from the pipeline component's stack and its test configuration files rather than treating it as a component of its own.
 
 ---
 
@@ -107,19 +112,21 @@ This is not an ambiguity and must not stop the run. Resolve it in favour of the 
 
 If, for any component, the signals conflict (a manifest for one language beside sources predominantly of another), or no manifest and no recognizable sources are found, **stop and ask** using `AskUserQuestion`. State what was found — manifests located, extension counts, imports parsed — and ask which stack applies.
 
-Never guess. Never resolve ambiguity by picking the more common option, the first one found, or the one that appears elsewhere in the project. A component's stack is independent of the other components' stacks.
+Never guess. Never resolve ambiguity by picking the more common option, the first one found, or the one that appears elsewhere in the project. A component's stack is independent of the other components' stacks — with the single documented exception that the service layer's language follows the pipeline's, and even that is confirmed from a manifest rather than assumed.
 
 ---
 
 ## Reporting contract
 
-For each of the three components, produce:
+For each of the four components, produce:
 
 - Component name and directory (or `absent`)
 - Language and runtime, with version if a file stated one
 - Frameworks and key libraries, as declared
 - Entrypoint, as written on disk
 - Run command, plus its working directory and any prerequisite install command
+
+For the service layer additionally: the number of stage services found and their directories, the gateway's stage-order configuration file path, the default order that file declares, and the request path a client submits transactions to — each read from a file, never inferred.
 
 Plus, once for the run: any discrepancy found under the conflict clause, and any component whose stack came from a confirmed hypothesis versus a full scan.
 

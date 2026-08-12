@@ -1,141 +1,158 @@
 """Fraud Detection stage.
 
-Reads validated records from shared/output, moves each into shared/processing
-while scoring it, and always passes the (now-annotated) record on to
-shared/output for Compliance Check -- flagging is never a rejection.
+Scores every transaction on a 0.00-1.00 scale using three additive, capped,
+weighted factors. Fraud Detection only flags for review; it never rejects or
+blocks a transaction. Each factor is evaluated independently from the
+record and live exchange rates alone, so this stage does not actually need
+any prior stage's result to run correctly — but per the stage-independence
+contract, any factor it genuinely cannot evaluate (e.g. no exchange rate
+for the transaction's currency) is recorded as not-applicable, naming what
+was missing, rather than guessed or defaulted.
 """
 from __future__ import annotations
 
 import argparse
-from decimal import Decimal
+from dataclasses import dataclass
+from datetime import datetime, time as dt_time
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
-from typing import Any, Dict
 
-from lib.common import (
-    audit,
-    lean_data,
-    list_json_files,
-    make_envelope,
-    parse_decimal,
-    parse_iso8601,
-    read_json,
-    read_original_record,
-    utc_now_iso,
-    write_envelope,
-)
-from lib.stage_runner import run_stage_loop
+from lib.exchange_rates import ExchangeRates, fetch_exchange_rates
+from lib.models import FraudResult, StageContext, Transaction
+from lib.stage_runner import run_downstream_stage
 
-STAGE_NAME = "fraud_detection"
-
+HIGH_VALUE_USD_THRESHOLD = Decimal("10000")
 HIGH_VALUE_WEIGHT = Decimal("0.50")
 CROSS_BORDER_WEIGHT = Decimal("0.30")
 UNUSUAL_HOUR_WEIGHT = Decimal("0.20")
-HIGH_VALUE_USD_THRESHOLD = Decimal("10000")
 FLAG_THRESHOLD = Decimal("0.50")
-SCORE_CAP = Decimal("1.00")
 BASELINE_COUNTRY = "GB"
-UNUSUAL_HOUR_START = 6
-UNUSUAL_HOUR_END = 22
-
-ExchangeRates = Dict[str, Decimal]
+UNUSUAL_HOUR_WINDOW_START = dt_time(6, 0)
+UNUSUAL_HOUR_WINDOW_END = dt_time(22, 0)
 
 
-def _usd_equivalent(amount: Decimal, currency: str, rates: ExchangeRates) -> Decimal:
-    if currency == "USD":
-        return amount
-    rate = rates.get(currency)
-    if rate is None:
-        raise ValueError(f"no exchange rate available for currency: {currency}")
-    return amount / rate
+def _parse_utc_datetime(value: str):
+    text = value.strip()
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    return datetime.fromisoformat(text)
 
 
-def score_transaction(record: Dict[str, Any], rates: ExchangeRates) -> Dict[str, Any]:
-    """Computes a weighted, explainable fraud risk score. Never rejects -- flags only.
+def _high_value_factor(record: Transaction, rates: ExchangeRates) -> dict:
+    try:
+        amount = abs(Decimal(record.amount))
+    except (InvalidOperation, TypeError):
+        return {"triggered": False, "weight": float(HIGH_VALUE_WEIGHT), "applicable": False,
+                "note": "amount is not a valid decimal string"}
 
-    `record` is the full original transaction (read from shared/input) so that
-    metadata.country and the transaction's own timestamp are available.
-    """
-    amount = abs(parse_decimal(record["amount"]))
-    currency = record["currency"]
-    usd_equivalent = _usd_equivalent(amount, currency, rates)
-
-    high_value = usd_equivalent >= HIGH_VALUE_USD_THRESHOLD
-
-    # The canonical schema carries no separate source/destination account
-    # country field -- only metadata.country -- so cross-border is judged
-    # against the GB baseline via metadata.country alone.
-    country = record.get("metadata", {}).get("country")
-    cross_border = country is not None and country != BASELINE_COUNTRY
-
-    tx_timestamp = parse_iso8601(record["timestamp"])
-    unusual_hour = not (UNUSUAL_HOUR_START <= tx_timestamp.hour < UNUSUAL_HOUR_END)
-
-    score = Decimal("0.00")
-    if high_value:
-        score += HIGH_VALUE_WEIGHT
-    if cross_border:
-        score += CROSS_BORDER_WEIGHT
-    if unusual_hour:
-        score += UNUSUAL_HOUR_WEIGHT
-    score = min(score, SCORE_CAP)
-
-    flagged = score >= FLAG_THRESHOLD
-
+    usd_amount = rates.to_usd(amount, record.currency)
+    if usd_amount is None:
+        return {
+            "triggered": False,
+            "weight": float(HIGH_VALUE_WEIGHT),
+            "applicable": False,
+            "note": f"no exchange rate available for currency '{record.currency}'",
+        }
     return {
-        "score": str(score),
-        "factors": {
-            "high_value_amount": high_value,
-            "cross_border_mismatch": cross_border,
-            "unusual_hour_timing": unusual_hour,
-        },
-        "flagged": flagged,
-        "scored_at": utc_now_iso(),
+        "triggered": usd_amount >= HIGH_VALUE_USD_THRESHOLD,
+        "weight": float(HIGH_VALUE_WEIGHT),
+        "applicable": True,
+        "note": f"{usd_amount} USD equivalent",
     }
 
-def run_stage(input_dir: Path, processing_dir: Path, output_dir: Path, rates: ExchangeRates) -> Dict[str, int]:
-    def process_transaction(transaction_id: str, working: Path) -> bool:
-        envelope = read_json(working)
-        data = envelope["data"]
 
-        original = read_original_record(input_dir, transaction_id)
-        result = score_transaction(original, rates)
-
-        new_data = lean_data(transaction_id, data["amount"], data["currency"], {
-            "validation_result": data.get("validation_result"),
-            "fraud_result": result,
-            "country": original.get("metadata", {}).get("country"),
-            "transaction_timestamp": original.get("timestamp"),
-        })
-        new_envelope = make_envelope(STAGE_NAME, "compliance", new_data)
-        write_envelope(output_dir, transaction_id, new_envelope)
-        audit(STAGE_NAME, transaction_id, "flagged" if result["flagged"] else "not_flagged")
-
-        return not result["flagged"]
-
-    return run_stage_loop(output_dir, processing_dir, "move", process_transaction)
+def _cross_border_factor(record: Transaction) -> dict:
+    country = (record.metadata or {}).get("country")
+    if not country:
+        return {
+            "triggered": False,
+            "weight": float(CROSS_BORDER_WEIGHT),
+            "applicable": False,
+            "note": "metadata.country missing",
+        }
+    return {
+        "triggered": country.upper() != BASELINE_COUNTRY,
+        "weight": float(CROSS_BORDER_WEIGHT),
+        "applicable": True,
+        "note": f"metadata.country={country} vs baseline {BASELINE_COUNTRY}",
+    }
 
 
-def _default_shared_dir() -> Path:
-    return Path("shared")
+def _unusual_hour_factor(record: Transaction) -> dict:
+    try:
+        parsed = _parse_utc_datetime(record.timestamp)
+    except (ValueError, AttributeError):
+        return {
+            "triggered": False,
+            "weight": float(UNUSUAL_HOUR_WEIGHT),
+            "applicable": False,
+            "note": "timestamp is not a valid ISO 8601 UTC datetime",
+        }
+    clock = parsed.timetz().replace(tzinfo=None)
+    within_window = UNUSUAL_HOUR_WINDOW_START <= clock <= UNUSUAL_HOUR_WINDOW_END
+    return {
+        "triggered": not within_window,
+        "weight": float(UNUSUAL_HOUR_WEIGHT),
+        "applicable": True,
+        "note": f"transaction time {clock.isoformat()} UTC",
+    }
+
+
+def score_transaction(record: Transaction, context: StageContext, rates: ExchangeRates) -> FraudResult:
+    factors = {
+        "high_value_amount": _high_value_factor(record, rates),
+        "cross_border_mismatch": _cross_border_factor(record),
+        "unusual_hour_timing": _unusual_hour_factor(record),
+    }
+
+    total = Decimal("0")
+    missing = []
+    for name, factor in factors.items():
+        if not factor["applicable"]:
+            missing.append(f"{name}: {factor['note']}")
+            continue
+        if factor["triggered"]:
+            total += Decimal(str(factor["weight"]))
+
+    score = min(total, Decimal("1.00"))
+    flagged = score >= FLAG_THRESHOLD
+
+    return FraudResult(score=str(score), flagged=flagged, factors=factors, missing=missing)
+
+
+def _is_pass(result: FraudResult) -> bool:
+    return not result.flagged
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run the Fraud Detection stage standalone.")
-    parser.add_argument("--input-dir", type=Path, default=_default_shared_dir() / "input")
-    parser.add_argument("--output-dir", type=Path, default=_default_shared_dir() / "output")
-    parser.add_argument("--processing-dir", type=Path, default=_default_shared_dir() / "processing")
+    parser = argparse.ArgumentParser(
+        prog="fraud_detection",
+        description="Fraud Detection stage for the transaction processing pipeline.",
+    )
+    parser.add_argument("--input-dir", default="shared/output", help="Directory of upstream messages to read.")
+    parser.add_argument("--output-dir", default="shared/output", help="Directory to write annotated messages to.")
+    parser.add_argument(
+        "--original-dir",
+        default="shared/input",
+        help="Directory holding original transaction records (for fields not carried in lean messages).",
+    )
     args = parser.parse_args()
 
-    currencies = set()
-    for f in list_json_files(args.output_dir):
-        env = read_json(f)
-        currencies.add(env["data"]["currency"])
-    from lib.exchange_rates import fetch_exchange_rates  # local import to avoid a hard dependency for other stages
+    rates = fetch_exchange_rates()
 
-    rates = fetch_exchange_rates(currencies) if currencies else {}
-
-    tally = run_stage(args.input_dir, args.processing_dir, args.output_dir, rates)
-    print(f"[{STAGE_NAME}] processed={tally['processed']} passed={tally['passed']} failed={tally['failed']}")
+    tally = run_downstream_stage(
+        stage_name="fraud_detection",
+        next_stage="compliance",
+        result_key="fraud_result",
+        compute_fn=score_transaction,
+        source_dir=Path(args.input_dir),
+        processing_dir=Path(args.output_dir).parent / "processing",
+        output_dir=Path(args.output_dir),
+        input_dir=Path(args.original_dir),
+        is_pass=_is_pass,
+        extra_kwargs={"rates": rates},
+    )
+    print(f"[fraud_detection] done: {tally}")
 
 
 if __name__ == "__main__":

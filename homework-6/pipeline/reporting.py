@@ -1,157 +1,181 @@
 """Reporting stage.
 
-Reads the finished (settled) messages from shared/output, combines them with
-the already-terminal records (rejected/held) already sitting in
-shared/results, builds the aggregate run summary at shared/report.json, then
-writes each settled transaction's final record to shared/results -- joining
-the fresh original from shared/input with the results gathered at every
-stage it reached. Leaves shared/output and shared/processing holding no
-files, without removing the directories themselves.
+Always invoked last. The sole owner of shared/results/. Computes each
+transaction's final verdict from its accumulated stage outcomes using the
+spec's pinned precedence table, then writes:
+
+  - shared/results/{transaction_id}.json  - one file per transaction, joining
+    the original record (read fresh from shared/input/) with accumulated
+    stage results, verdict, fraud_flagged, and reason.
+  - shared/report.json - aggregate run summary.
+
+build_report() itself is a pure function with no I/O, per the stage
+contract; the CLI/orchestrator glue below performs the file I/O around it.
 """
 from __future__ import annotations
 
 import argparse
-from collections import defaultdict
-from decimal import Decimal
 from pathlib import Path
-from typing import Any, Dict, List
 
-from lib.common import (
-    audit,
-    clear_processing_file,
-    list_json_files,
-    read_json,
-    read_original_record,
-    utc_now_iso,
-    write_json,
-)
-from lib.stage_runner import run_stage_loop
-
-STAGE_NAME = "reporting"
-
-SCORE_BUCKETS = (
-    ("0.00-0.19", Decimal("0.00"), Decimal("0.19")),
-    ("0.20-0.49", Decimal("0.20"), Decimal("0.49")),
-    ("0.50-0.79", Decimal("0.50"), Decimal("0.79")),
-    ("0.80-1.00", Decimal("0.80"), Decimal("1.00")),
-)
+from lib.message_io import context_from_envelope_data, now_iso, read_json, write_json
+from lib.models import ProcessedTransaction, RunReport, StageContext, VerdictRecord
 
 
-def build_report(records: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """Computes the aggregate run summary from every processed transaction's
-    accumulated results, whatever stage it finally reached. Counts
-    transactions only -- never the summary record itself. Every monetary
-    aggregate is computed with Decimal.
-    """
-    total = len(records)
-    validated = rejected = flagged = held = settled = 0
-    score_distribution = {label: 0 for label, _, _ in SCORE_BUCKETS}
-    settled_value_by_currency: Dict[str, Decimal] = defaultdict(lambda: Decimal("0"))
+def _compute_verdict(context: StageContext) -> tuple[str, str | None]:
+    v, f, c, s = (
+        context.validation_result,
+        context.fraud_result,
+        context.compliance_result,
+        context.settlement_result,
+    )
 
-    for record in records:
-        validation_result = record.get("validation_result") or {}
-        if validation_result.get("status") == "passed":
-            validated += 1
+    missing = [
+        name
+        for name, val in (
+            ("validation", v),
+            ("fraud_detection", f),
+            ("compliance", c),
+            ("settlement", s),
+        )
+        if val is None
+    ]
+    if missing:
+        return "INCOMPLETE", f"stage(s) did not run: {', '.join(missing)}"
 
-        final_status = record.get("final_status")
-        if final_status == "rejected":
-            rejected += 1
-        elif final_status == "held":
-            held += 1
-        elif final_status == "settled":
+    if not v.passed:
+        return "REJECTED", f"validation: {v.reason}"
+
+    if c.status == "rejected":
+        return "REJECTED", f"compliance: {c.reason}"
+
+    if c.status == "held":
+        return "HELD", f"compliance: {c.reason}"
+
+    if s.status == "settled":
+        return "SETTLED", None
+
+    return "INCOMPLETE", "no settlement outcome recorded"
+
+
+def build_report(records: list[ProcessedTransaction]) -> RunReport:
+    """build_report(records) -> RunReport. Pure: performs no I/O."""
+    verdicts: list[VerdictRecord] = []
+    settled = rejected = held = incomplete = fraud_flagged_count = compliance_held_count = 0
+
+    for processed in records:
+        verdict, reason = _compute_verdict(processed.context)
+        fraud_flagged = bool(processed.context.fraud_result and processed.context.fraud_result.flagged)
+
+        if verdict == "SETTLED":
             settled += 1
+        elif verdict == "REJECTED":
+            rejected += 1
+        elif verdict == "HELD":
+            held += 1
+        else:
+            incomplete += 1
 
-        fraud_result = record.get("fraud_result") or {}
-        if fraud_result.get("flagged"):
-            flagged += 1
-        score_raw = fraud_result.get("score")
-        if score_raw is not None:
-            score = Decimal(str(score_raw))
-            for label, low, high in SCORE_BUCKETS:
-                if low <= score <= high:
-                    score_distribution[label] += 1
-                    break
+        if fraud_flagged:
+            fraud_flagged_count += 1
+        if processed.context.compliance_result and processed.context.compliance_result.status == "held":
+            compliance_held_count += 1
 
-        settlement_result = record.get("settlement_result")
-        if settlement_result and settlement_result.get("status") == "settled":
-            currency = settlement_result.get("currency")
-            amount = Decimal(str(settlement_result.get("settled_amount", "0")))
-            settled_value_by_currency[currency] += amount
+        verdicts.append(
+            VerdictRecord(
+                transaction_id=processed.transaction_id,
+                verdict=verdict,
+                fraud_flagged=fraud_flagged,
+                reason=reason,
+                stage_outcomes=processed.context.to_dict(),
+            )
+        )
 
-    return {
-        "generated_at": utc_now_iso(),
-        "total_records": total,
-        "counts": {
-            "validated": validated,
-            "rejected": rejected,
-            "flagged": flagged,
-            "held": held,
-            "settled": settled,
-        },
-        "risk_score_distribution": score_distribution,
-        "total_settled_value_by_currency": {c: str(v) for c, v in settled_value_by_currency.items()},
-    }
+    total = len(records)
+    summary = (
+        f"{total} transaction(s) processed: {settled} settled, {rejected} rejected, "
+        f"{held} held, {incomplete} incomplete; {fraud_flagged_count} fraud-flagged."
+    )
 
-def run_stage(input_dir: Path, processing_dir: Path, output_dir: Path, results_dir: Path) -> Dict[str, int]:
-    report_path = results_dir.parent / "report.json"
+    return RunReport(
+        total=total,
+        settled=settled,
+        rejected=rejected,
+        held=held,
+        incomplete=incomplete,
+        fraud_flagged=fraud_flagged_count,
+        compliance_held=compliance_held_count,
+        summary=summary,
+        generated_at=now_iso(),
+        verdicts=verdicts,
+    )
 
-    def process_transaction(transaction_id: str, working: Path) -> bool:
-        envelope = read_json(working)
+
+def run_reporting(output_dir: Path, input_dir: Path, results_dir: Path, report_path: Path) -> RunReport:
+    """CLI/orchestrator glue: reads finished messages from output_dir, builds
+    the batch of ProcessedTransaction, computes the report, writes one file
+    per transaction into results_dir (joining the fresh original record),
+    and writes report.json. Leaves output_dir empty of files afterward."""
+    results_dir.mkdir(parents=True, exist_ok=True)
+
+    source_files = sorted(output_dir.glob("*.json"))
+    processed_list: list[ProcessedTransaction] = []
+    envelopes_by_id: dict[str, Path] = {}
+
+    for src_path in source_files:
+        envelope = read_json(src_path)
         data = envelope["data"]
+        transaction_id = data["transaction_id"]
+        context = context_from_envelope_data(data)
+        processed_list.append(
+            ProcessedTransaction(
+                transaction_id=transaction_id,
+                amount=data.get("amount"),
+                currency=data.get("currency"),
+                context=context,
+            )
+        )
+        envelopes_by_id[transaction_id] = src_path
 
-        original = read_original_record(input_dir, transaction_id)
+    report = build_report(processed_list)
+
+    for verdict_record in report.verdicts:
+        original = read_json(input_dir / f"{verdict_record.transaction_id}.json")
         final_record = dict(original)
         final_record.update(
             {
-                "validation_result": data.get("validation_result"),
-                "fraud_result": data.get("fraud_result"),
-                "compliance_result": data.get("compliance_result"),
-                "settlement_result": data.get("settlement_result"),
-                "final_status": "settled",
+                "transaction_id": verdict_record.transaction_id,
+                "verdict": verdict_record.verdict,
+                "fraud_flagged": verdict_record.fraud_flagged,
+                "reason": verdict_record.reason,
+                "stage_outcomes": verdict_record.stage_outcomes,
             }
         )
-        settled_finals.append((transaction_id, final_record, working))
-        return True
+        write_json(results_dir / f"{verdict_record.transaction_id}.json", final_record)
+        envelopes_by_id[verdict_record.transaction_id].unlink()
 
-    # Records already terminated earlier in the run (validation-rejected,
-    # compliance-held/rejected) already sit in shared/results.
-    terminal_records = [read_json(f) for f in list_json_files(results_dir)]
+    write_json(report_path, report.to_dict())
 
-    # Deferred: the report needs every settled_finals entry gathered before any
-    # of them can be written, so process() only builds and collects each final
-    # record here; the actual results/ writes (and processing/ clearing) happen
-    # in the second pass below, once build_report has run over the full set.
-    settled_finals: List[tuple] = []
-
-    tally = run_stage_loop(output_dir, processing_dir, "move", process_transaction, clear_processing=False)
-
-    all_records = terminal_records + [f[1] for f in settled_finals]
-    report = build_report(all_records)
-    write_json(report_path, report)
-
-    for transaction_id, final_record, working in settled_finals:
-        results_dir.mkdir(parents=True, exist_ok=True)
-        write_json(results_dir / f"{transaction_id}.json", final_record)
-        audit(STAGE_NAME, transaction_id, "settled")
-        clear_processing_file(working)
-
-    return tally
-
-
-def _default_shared_dir() -> Path:
-    return Path("shared")
+    return report
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run the Reporting stage standalone.")
-    parser.add_argument("--input-dir", type=Path, default=_default_shared_dir() / "input")
-    parser.add_argument("--output-dir", type=Path, default=_default_shared_dir() / "output")
-    parser.add_argument("--processing-dir", type=Path, default=_default_shared_dir() / "processing")
-    parser.add_argument("--results-dir", type=Path, default=_default_shared_dir() / "results")
+    parser = argparse.ArgumentParser(
+        prog="reporting",
+        description="Reporting stage for the transaction processing pipeline (terminal stage).",
+    )
+    parser.add_argument("--input-dir", default="shared/output", help="Directory of finished messages to read.")
+    parser.add_argument("--original-dir", default="shared/input", help="Directory holding original records.")
+    parser.add_argument("--results-dir", default="shared/results", help="Directory to write final records to.")
+    parser.add_argument("--report-path", default="shared/report.json", help="Path to write the aggregate report.")
     args = parser.parse_args()
 
-    tally = run_stage(args.input_dir, args.processing_dir, args.output_dir, args.results_dir)
-    print(f"[{STAGE_NAME}] processed={tally['processed']} passed={tally['passed']} failed={tally['failed']}")
+    report = run_reporting(
+        output_dir=Path(args.input_dir),
+        input_dir=Path(args.original_dir),
+        results_dir=Path(args.results_dir),
+        report_path=Path(args.report_path),
+    )
+    print(f"[reporting] done: {report.to_dict()}")
 
 
 if __name__ == "__main__":

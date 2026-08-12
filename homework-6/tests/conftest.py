@@ -1,4 +1,6 @@
 """Shared pytest fixtures and configuration for all tests."""
+from __future__ import annotations
+
 import json
 import tempfile
 from decimal import Decimal
@@ -6,6 +8,9 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 import pytest
+
+from lib.exchange_rates import ExchangeRates
+from lib.models import StageContext, Transaction
 
 
 @pytest.fixture
@@ -47,7 +52,8 @@ def edge_case_transactions() -> List[Dict[str, Any]]:
 
 @pytest.fixture
 def sample_transaction() -> Dict[str, Any]:
-    """A single valid transaction for testing."""
+    """A single valid transaction record (dict), for tests that go through
+    the from_dict boundary the way stages actually receive records."""
     return {
         "transaction_id": "TEST_001",
         "timestamp": "2026-03-16T10:00:00Z",
@@ -57,64 +63,70 @@ def sample_transaction() -> Dict[str, Any]:
         "currency": "USD",
         "transaction_type": "transfer",
         "description": "Test transaction",
-        "metadata": {
-            "channel": "online",
-            "country": "US"
-        }
+        "metadata": {"channel": "online", "country": "US"},
     }
 
 
 @pytest.fixture
-def sample_validation_result() -> Dict[str, Any]:
-    """A sample validation result."""
+def sample_record(sample_transaction) -> Transaction:
+    """The same transaction as a Transaction dataclass instance, matching
+    every stage function's actual (record, context) signature."""
+    return Transaction.from_dict(sample_transaction)
+
+
+@pytest.fixture
+def empty_context() -> StageContext:
+    return StageContext()
+
+
+@pytest.fixture
+def sample_validation_result_dict() -> Dict[str, Any]:
+    return {"passed": True, "reason": None, "errors": []}
+
+
+@pytest.fixture
+def sample_fraud_result_dict() -> Dict[str, Any]:
+    return {"score": "0.50", "flagged": True, "factors": {}, "missing": []}
+
+
+@pytest.fixture
+def sample_compliance_result_dict() -> Dict[str, Any]:
+    return {"status": "passed", "reason": None, "rule_outcomes": {}}
+
+
+@pytest.fixture
+def sample_settlement_result_dict() -> Dict[str, Any]:
     return {
-        "status": "passed",
-        "reason": None,
-        "checked_at": "2026-03-16T10:00:00+00:00"
+        "status": "settled",
+        "settlement_reference": "ref-0001",
+        "settlement_timestamp": "2026-03-16T10:00:00+00:00",
+        "reason": "ok",
     }
 
 
 @pytest.fixture
-def sample_fraud_result() -> Dict[str, Any]:
-    """A sample fraud detection result."""
-    return {
-        "score": "0.50",
-        "factors": {
-            "high_value_amount": True,
-            "cross_border_mismatch": False,
-            "unusual_hour_timing": False
-        },
-        "flagged": True,
-        "scored_at": "2026-03-16T10:00:00+00:00"
-    }
+def fake_rates() -> ExchangeRates:
+    """Deterministic offline exchange rates.
+
+    Every test that would otherwise reach the live exchange-rate API uses
+    these, so the suite never depends on network availability.
+    """
+    return ExchangeRates(base="USD", rates={"USD": "1", "EUR": "0.92", "GBP": "0.79"})
 
 
 @pytest.fixture
-def sample_compliance_result() -> Dict[str, Any]:
-    """A sample compliance check result."""
-    return {
-        "status": "cleared",
-        "reason": None,
-        "checked_at": "2026-03-16T10:00:00+00:00"
-    }
-
-
-@pytest.fixture
-def sample_exchange_rates() -> Dict[str, Decimal]:
-    """Sample exchange rates for testing."""
-    return {
-        "USD": Decimal("1"),
-        "EUR": Decimal("0.92"),
-        "GBP": Decimal("0.79"),
-    }
+def sample_dataset_path() -> Path:
+    """Path to the real sample-transactions.json shipped with the project."""
+    return Path(__file__).resolve().parent.parent / "sample-transactions.json"
 
 
 # ---------------------------------------------------------------------------
 # On-disk stage fixtures
 #
 # The unit tests above exercise the pure decision functions. The fixtures
-# below support testing each stage's run_stage() file lifecycle and the
-# orchestrator, which is where the real directory/envelope contract lives.
+# below support testing each stage's run_first_stage/run_downstream_stage
+# file lifecycle and the orchestrator, which is where the real
+# directory/envelope contract lives.
 # ---------------------------------------------------------------------------
 
 
@@ -151,8 +163,9 @@ def put_input(stage_dirs):
 def put_envelope(stage_dirs):
     """Write an inter-stage message envelope into shared/output/.
 
-    Mirrors lib.common.make_envelope's shape but with deterministic values, so
-    a downstream stage can be driven in isolation from its predecessors.
+    Mirrors lib.message_io.build_envelope's shape but with deterministic
+    values, so a downstream stage can be driven in isolation from its
+    predecessors.
     """
 
     def _put(transaction_id: str, data: Dict[str, Any], source_stage: str = "upstream",
@@ -170,19 +183,3 @@ def put_envelope(stage_dirs):
         return path
 
     return _put
-
-
-@pytest.fixture
-def fake_rates() -> Dict[str, Decimal]:
-    """Deterministic offline exchange rates.
-
-    Every test that would otherwise reach the live Frankfurter API uses these,
-    so the suite never depends on network availability.
-    """
-    return {"USD": Decimal("1"), "EUR": Decimal("0.92"), "GBP": Decimal("0.79")}
-
-
-@pytest.fixture
-def sample_dataset_path() -> Path:
-    """Path to the real sample-transactions.json shipped with the project."""
-    return Path(__file__).resolve().parent.parent / "sample-transactions.json"
