@@ -4,6 +4,11 @@
 
 set -e
 
+# Coverage values are always written with a '.' decimal separator, so force
+# C numeric formatting. Under a locale that uses ',' (e.g. uk_UA.UTF-8),
+# printf "%.2f" "100.0" fails and the gate blocks every push regardless of coverage.
+export LC_NUMERIC=C
+
 # Configuration
 THRESHOLD="${COVERAGE_THRESHOLD:-80}"
 SEARCH_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"  # homework-6 folder
