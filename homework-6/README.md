@@ -4,7 +4,7 @@
 
 **Date:** 12.08.2026
 
-**AI tools used:** Claude Code, with the project's own `.claude/agents/` definitions (`documentation`, `pipeline-codegen`, `skills-hooks`, `specification`, `tests-codegen`, `tests-docs`) and `.claude/skills/` (`run-pipeline`, `validate-transactions`, `write-spec`); the `context7` MCP server for library documentation lookups; a custom `pipeline-status` MCP server (built on FastMCP) for read-only pipeline querying; and a `PreToolUse` hook that gates `git push`/`gh pr create` on a coverage threshold.
+**AI tools used:** Claude Code, with the project's own `.claude/agents/` definitions (`documentation`, `pipeline-codegen`, `skills-hooks`, `specification`, `tests-codegen`) and `.claude/skills/` (`run-complete-flow`, `run-pipeline`, `validate-transactions`, `write-spec`); the `context7` MCP server for library documentation lookups; a custom `pipeline-status` MCP server (built on FastMCP) for read-only pipeline querying; and a `PreToolUse` hook that gates `git push`/`gh pr create` on a coverage threshold.
 
 ## Overview
 
