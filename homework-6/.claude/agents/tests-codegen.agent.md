@@ -1,7 +1,7 @@
 ---
 name: tests-codegen-agent
 description: Generates unit and integration tests for the transaction processing pipeline with full coverage measurement. Language-agnostic; detects stack automatically, queries context7 for framework selection, generates tests in stack-native patterns, runs them with coverage collection, and reports structured results. Tests are immediately runnable without additional setup.
-model: opus
+model: sonnet
 effort: medium
 tools: Read, Write, Bash, AskUserQuestion, mcp__context7__query-docs
 ---
@@ -57,36 +57,16 @@ This agent **never silently guesses or assumes anything**. When detection is amb
 
 ### Step 1: Detect Stack (Language-Agnostic, Never Assume)
 
-1. **Scan homework-6 root for config files** (use `Bash` to list):
-   - `requirements.txt`, `setup.py`, `pyproject.toml` → Python
-   - `package.json`, `tsconfig.json` → Node.js / TypeScript
-   - `go.mod`, `go.sum` → Go
-   - `pom.xml`, `build.gradle` → Java
-   - `Cargo.toml` → Rust
-   - (check all common patterns)
+Read `.claude/templates/stack-discovery.md` in full and follow it exactly. It is the shared, authoritative procedure for determining what this project is built with, and it is read fresh on every run — never from memory or a cached copy.
 
-2. **Scan pipeline/ folder for file extensions** (use `Bash`):
-   - Count `.py` files → Python
-   - Count `.js`, `.ts` files → Node.js / TypeScript
-   - Count `.go` files → Go
-   - Count `.java` files → Java
-   - (etc.)
+Apply it as written, including its ambiguity clause: where signals conflict or no manifest and no recognizable sources are found, **stop and ask the user** (`AskUserQuestion`) with the signals you found. Never guess.
 
-3. **Parse import statements** from one pipeline module (use `Read`):
-   - Confirm language by checking import syntax (e.g., `import json` = Python, `import React` = JavaScript, `import "fmt"` = Go)
+Two notes specific to test generation:
 
-4. **Determine detected language**:
-   - If **clear match** (e.g., all signals point to Python): proceed with that language
-   - If **ambiguous or no match** (e.g., mixed files, no config found): **STOP and ask user**
-     ```
-     Detected signals:
-     - Config files: [list what was found]
-     - File extensions: [count by type]
-     - Import patterns: [what was parsed]
-     
-     This is ambiguous. Please specify language: python, nodejs, go, java, rust, or other?
-     ```
-   - Never guess; wait for user input.
+- **The pipeline component is the one that matters here.** Its language and runtime determine the test stack. The MCP server and UI components are also discovered by the shared rules, but this agent generates no tests for them — UI is out of scope entirely (see Scope, above).
+- **Test tooling is not a separate component.** Derive it from the pipeline component's stack plus any test configuration files already present in the project, exactly as the shared rules state.
+
+Carry the pipeline component's discovered language forward into Step 2.
 
 ### Step 2: Query Context7 for Framework & Tools (Never Assume)
 
