@@ -1,0 +1,36 @@
+{
+  "transaction_id": "TXN005",
+  "timestamp": "2026-03-16T10:00:00Z",
+  "source_account": "ACC-1005",
+  "destination_account": "ACC-6600",
+  "amount": "75000.00",
+  "currency": "USD",
+  "transaction_type": "wire_transfer",
+  "description": "Property settlement",
+  "metadata": {
+    "channel": "branch",
+    "country": "US"
+  },
+  "validation_result": {
+    "status": "passed",
+    "reason": null,
+    "checked_at": "2026-08-10T19:59:03.555638+00:00"
+  },
+  "fraud_result": {
+    "score": "0.80",
+    "factors": {
+      "high_value_amount": true,
+      "cross_border_mismatch": true,
+      "unusual_hour_timing": false
+    },
+    "flagged": true,
+    "scored_at": "2026-08-10T19:59:04.574601+00:00"
+  },
+  "compliance_result": {
+    "status": "held",
+    "reason": "held for human review: fraud score 0.80 flagged this record",
+    "checked_at": "2026-08-10T19:59:05.594621+00:00"
+  },
+  "reason": "held for human review: fraud score 0.80 flagged this record",
+  "final_status": "held"
+}

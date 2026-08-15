@@ -1,0 +1,95 @@
+[
+  {
+    "transaction_id": "INVALID_001",
+    "timestamp": "2026-03-16T09:00:00Z",
+    "source_account": "ACC-1001",
+    "destination_account": "ACC-2001",
+    "currency": "USD",
+    "transaction_type": "transfer",
+    "description": "Missing amount field",
+    "metadata": {
+      "channel": "online",
+      "country": "US"
+    }
+  },
+  {
+    "transaction_id": "INVALID_002",
+    "timestamp": "2026-03-16T09:00:00Z",
+    "source_account": "ACC-1001",
+    "destination_account": "ACC-2001",
+    "amount": 1500.00,
+    "currency": "USD",
+    "transaction_type": "transfer",
+    "description": "Amount is number not string",
+    "metadata": {
+      "channel": "online",
+      "country": "US"
+    }
+  },
+  {
+    "transaction_id": "INVALID_003",
+    "timestamp": "2026-03-16T09:00:00Z",
+    "source_account": "ACC-1001",
+    "destination_account": "ACC-2001",
+    "amount": "invalid_amount",
+    "currency": "USD",
+    "transaction_type": "transfer",
+    "description": "Invalid decimal amount",
+    "metadata": {
+      "channel": "online",
+      "country": "US"
+    }
+  },
+  {
+    "transaction_id": "INVALID_004",
+    "timestamp": "2026-03-16T09:00:00Z",
+    "source_account": "ACC-1001",
+    "destination_account": "ACC-2001",
+    "amount": "1500.00",
+    "currency": "XYZ",
+    "transaction_type": "transfer",
+    "description": "Invalid currency code",
+    "metadata": {
+      "channel": "online",
+      "country": "US"
+    }
+  },
+  {
+    "transaction_id": "INVALID_005",
+    "timestamp": "not-a-valid-timestamp",
+    "source_account": "ACC-1001",
+    "destination_account": "ACC-2001",
+    "amount": "1500.00",
+    "currency": "USD",
+    "transaction_type": "transfer",
+    "description": "Invalid timestamp",
+    "metadata": {
+      "channel": "online",
+      "country": "US"
+    }
+  },
+  {
+    "transaction_id": "INVALID_006",
+    "timestamp": "2026-03-16T09:00:00Z",
+    "source_account": "ACC-1001",
+    "destination_account": "ACC-2001",
+    "amount": "1500.00",
+    "currency": "USD",
+    "transaction_type": "transfer",
+    "description": "Missing metadata",
+    "metadata": {
+      "channel": "online"
+    }
+  },
+  {
+    "transaction_id": "INVALID_007",
+    "timestamp": "2026-03-16T09:00:00Z",
+    "source_account": "ACC-1001",
+    "destination_account": "ACC-2001",
+    "amount": "1500.00",
+    "currency": "USD",
+    "transaction_type": "transfer",
+    "description": "Metadata is not a dict",
+    "metadata": "not-a-dict"
+  }
+]

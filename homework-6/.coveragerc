@@ -1,0 +1,39 @@
+# Coverage configuration for the transaction-processing pipeline.
+#
+# Scope is the pipeline itself: the five stage modules, the shared library,
+# and the orchestrator. The web UI is deliberately out of scope.
+
+[run]
+source =
+    pipeline
+    lib
+    orchestrator
+branch = True
+omit =
+    */__pycache__/*
+    */site-packages/*
+    tests/*
+    ui/*
+
+[report]
+show_missing = True
+skip_covered = False
+precision = 2
+exclude_lines =
+    # Standard coverage pragma
+    pragma: no cover
+    # Script entry-point guards: the body is main(), which is tested directly
+    # by calling main() with a patched sys.argv. The guard line itself can
+    # only execute under `python module.py`, never under the test runner.
+    if __name__ == .__main__.:
+    # Typing-only branches never taken at runtime
+    if TYPE_CHECKING:
+    # Abstract/unimplemented markers
+    raise NotImplementedError
+
+[json]
+output = coverage_report.json
+pretty_print = True
+
+[html]
+directory = htmlcov

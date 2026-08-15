@@ -1,0 +1,43 @@
+{
+  "transaction_id": "TXN008",
+  "timestamp": "2026-03-16T10:15:00Z",
+  "source_account": "ACC-1008",
+  "destination_account": "ACC-9900",
+  "amount": "3200.00",
+  "currency": "USD",
+  "transaction_type": "transfer",
+  "description": "Salary advance",
+  "metadata": {
+    "channel": "mobile",
+    "country": "US"
+  },
+  "validation_result": {
+    "status": "passed",
+    "reason": null,
+    "checked_at": "2026-08-10T19:59:03.557465+00:00"
+  },
+  "fraud_result": {
+    "score": "0.30",
+    "factors": {
+      "high_value_amount": false,
+      "cross_border_mismatch": true,
+      "unusual_hour_timing": false
+    },
+    "flagged": false,
+    "scored_at": "2026-08-10T19:59:04.577615+00:00"
+  },
+  "compliance_result": {
+    "status": "cleared",
+    "reason": null,
+    "checked_at": "2026-08-10T19:59:05.596479+00:00"
+  },
+  "settlement_result": {
+    "status": "settled",
+    "settlement_reference": "f6297a16-9478-478a-9410-a0c68695da18",
+    "settlement_timestamp": "2026-08-10T19:59:06.611265+00:00",
+    "settled_amount": "3200.00",
+    "currency": "USD",
+    "retention_period_years": 5
+  },
+  "final_status": "settled"
+}
